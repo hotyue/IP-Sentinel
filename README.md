@@ -2,7 +2,7 @@
 
 > **一个极度轻量、零感知、支持中枢遥控的 VPS IP 自动化养护与区域纠偏引擎。**
 
-📢 官方战术交流频道: 🛰️ IP-Sentinel Matrix(https://t.me/IP_Sentinel_Matrix)
+📢 官方战术交流频道: 🛰️ [IP-Sentinel Matrix](https://t.me/IP_Sentinel_Matrix)
 
 专为解决 VPS IPv4 被 Google 等数据库错误定位到中国大陆/香港（俗称“送中”）等问题而生。IP-Sentinel 已从单机脚本全面跃升为 **Master-Agent 分布式架构**。它像影子一样潜伏在全球各地的服务器后台，通过高度拟真的真实用户行为为你默默积累 IP 权重，并允许你通过 Telegram 随时随地对整个舰队进行毫秒级“点名”与“遥控”。
 
@@ -56,7 +56,7 @@ bash /opt/ip_sentinel/core/uninstall.sh
 
 📡 战术联络 (Community)
 如果你在使用过程中遇到任何疑难杂症，或者想围观大佬们的养护战报，欢迎加入我们的基地：
-- Telegram 频道: @IP_Sentinel_Matrix(https://t.me/IP_Sentinel_Matrix)
+- Telegram 频道: [@IP_Sentinel_Matrix](https://t.me/IP_Sentinel_Matrix)
 
 🤝 参与贡献
 如果你想为项目增加新的节点区域（例如德国、英国、新加坡等），或者提供更丰富的本土化搜索词库，非常欢迎提交 Pull Request！
