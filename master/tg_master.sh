@@ -24,6 +24,12 @@ send_msg() {
         -d "chat_id=$1" -d "text=$2" -d "parse_mode=Markdown" > /dev/null
 }
 
+# ================== [v3.0.1 新增: 消息原位刷新函数] ==================
+edit_msg() {
+    curl -s -X POST "https://api.telegram.org/bot${TG_TOKEN}/editMessageText" \
+        -d "chat_id=$1" -d "message_id=$2" -d "text=$3" -d "parse_mode=Markdown" > /dev/null
+}
+
 # 数据库执行函数
 db_exec() {
     sqlite3 "$DB_FILE" "$1"
@@ -43,6 +49,15 @@ while true; do
             
             CHAT_ID=$(echo "$UPDATE" | jq -r '.message.chat.id // .callback_query.message.chat.id')
             TEXT=$(echo "$UPDATE" | jq -r '.message.text // .callback_query.data')
+
+            # ================== [v3.0.1 新增: 消除转圈圈与获取消息ID] ==================
+            CB_ID=$(echo "$UPDATE" | jq -r '.callback_query.id // empty')
+            MSG_ID=$(echo "$UPDATE" | jq -r '.callback_query.message.message_id // empty')
+            
+            # 告诉 TG 官方“指令已收到”，立刻消除按钮上的加载圈圈
+            if [ -n "$CB_ID" ]; then
+                curl -s -X POST "https://api.telegram.org/bot${TG_TOKEN}/answerCallbackQuery" -d "callback_query_id=${CB_ID}" > /dev/null
+            fi
 
             # ==========================================
             # 1. 节点注册通道
@@ -126,23 +141,38 @@ while true; do
                     AGENT_PORT=$(echo "$AGENT_INFO" | cut -d'|' -f2)
 
                     if [ -n "$AGENT_IP" ] && [ -n "$AGENT_PORT" ]; then
-                        send_msg "$CHAT_ID" "⏳ 正在向 \`$TARGET_NODE\` ($AGENT_IP) 下发 [$ACTION_TYPE] 指令，请稍候..."
+                        # [v3.0.2 防刷屏] 原位刷新菜单为等待状态
+                        if [ -n "$MSG_ID" ]; then
+                            edit_msg "$CHAT_ID" "$MSG_ID" "⏳ 正在向 \`$TARGET_NODE\` ($AGENT_IP) 下发 [$ACTION_TYPE] 指令，请稍候..."
+                        else
+                            send_msg "$CHAT_ID" "⏳ 正在向 \`$TARGET_NODE\` ($AGENT_IP) 下发 [$ACTION_TYPE] 指令，请稍候..."
+                        fi
                         
                         # 触发 Webhook
                         RESPONSE=$(curl -s -m 5 "http://${AGENT_IP}:${AGENT_PORT}/trigger_${ACTION_TYPE}" || echo "FAILED")
                         
-                        # 【核心升级】处理 Agent 传回来的 403 拦截状态码
+                        # 结果判定
                         if [ "$RESPONSE" == "FAILED" ]; then
-                            send_msg "$CHAT_ID" "❌ 指令下发超时或失败！请检查节点公网 IP 或防火墙端口 ($AGENT_PORT) 是否放行。"
+                            TEXT_RES="❌ 指令下发超时或失败！请检查节点公网 IP 或防火墙端口 ($AGENT_PORT) 是否放行。"
                         elif [[ "$RESPONSE" == *"403"* ]]; then
-                            send_msg "$CHAT_ID" "⚠️ **拒绝执行**：该节点未在本地开启此模块，请检查安装时的配置！"
+                            TEXT_RES="⚠️ **拒绝执行**：该节点未在本地开启此模块，请检查安装时的配置！"
                         else
-                            # 细化成功提示
-                            if [ "$ACTION_TYPE" == "google" ] || [ "$ACTION_TYPE" == "run" ]; then
-                                send_msg "$CHAT_ID" "✅ 节点 \`$TARGET_NODE\` 回应: 📍 Google 纠偏程序启动。"
-                            elif [ "$ACTION_TYPE" == "trust" ]; then
-                                send_msg "$CHAT_ID" "✅ 节点 \`$TARGET_NODE\` 回应: 🛡️ IP 信用净化程序启动。"
+                            if [ "$ACTION_TYPE" == "google" ] || [ "$ACTION_TYPE" == "run" ]; then 
+                                TEXT_RES="✅ 节点 \`$TARGET_NODE\` 回应: 📍 Google 纠偏程序启动。"
+                            elif [ "$ACTION_TYPE" == "trust" ]; then 
+                                TEXT_RES="✅ 节点 \`$TARGET_NODE\` 回应: 🛡️ IP 信用净化程序启动。"
+                            elif [ "$ACTION_TYPE" == "log" ]; then 
+                                TEXT_RES="✅ 节点 \`$TARGET_NODE\` 正在抓取日志..."
+                            else 
+                                TEXT_RES="✅ 节点 \`$TARGET_NODE\` 接收指令: $ACTION_TYPE"
                             fi
+                        fi
+                        
+                        # [v3.0.1 防刷屏] 将等待状态刷新为最终结果
+                        if [ -n "$MSG_ID" ]; then
+                            edit_msg "$CHAT_ID" "$MSG_ID" "$TEXT_RES"
+                        else
+                            send_msg "$CHAT_ID" "$TEXT_RES"
                         fi
                     else
                         send_msg "$CHAT_ID" "❌ 数据库中未找到该节点的通讯地址。"
