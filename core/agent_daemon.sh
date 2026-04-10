@@ -36,7 +36,7 @@ if [ -n "$AGENT_IP" ]; then
     if [ "$AGENT_IP" != "$LAST_IP" ]; then
         REG_MSG="👋 **[边缘节点接入申请]**%0A节点: \`${NODE_NAME}\`%0A地址: \`${AGENT_IP}:${AGENT_PORT}\`%0A%0A⚠️ **安全验证**: 为防止非法节点接入，请长按复制下方代码，并**发送给我**以完成最终授权录入：%0A%0A\`#REGISTER#|${NODE_NAME}|${AGENT_IP}|${AGENT_PORT}\`"
         
-        curl -s -m 5 -X POST "https://api.telegram.org/bot${TG_TOKEN}/sendMessage" \
+        curl -s -m 5 -X POST "${TG_API_URL}" \
             -d "chat_id=${CHAT_ID}" \
             -d "text=${REG_MSG}" \
             -d "parse_mode=Markdown" > /dev/null
@@ -106,7 +106,7 @@ class AgentHandler(http.server.BaseHTTPRequestHandler):
             source /opt/ip_sentinel/config.conf
             LOG_DATA=$(tail -n 15 /opt/ip_sentinel/logs/sentinel.log)
             NODE=$(hostname | cut -c 1-15)
-            curl -s -X POST "https://api.telegram.org/bot${TG_TOKEN}/sendMessage" \
+            curl -s -X POST "${TG_API_URL}" \
                 -d "chat_id=${CHAT_ID}" \
                 -d "text=📄 **[${NODE}] 实时运行日志:**%0A\`\`\`log%0A${LOG_DATA}%0A\`\`\`" \
                 -d "parse_mode=Markdown"

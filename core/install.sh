@@ -145,11 +145,13 @@ if [[ "$TG_CHOICE" =~ ^[Yy]$ ]]; then
     read -p "请输入您的 Telegram Bot Token (回车使用官方默认): " USER_TOKEN
     
     if [ -z "$USER_TOKEN" ]; then
-        TG_TOKEN="8733029779:AAErXnFw45NCWZl4ylKQX-0OIC9SA_4XifM"
-        echo -e "\033[32m✅ 已自动配置官方机器人 (@OmniBeacon_bot)。\033[0m"
+        TG_TOKEN="OFFICIAL_GATEWAY_MODE" 
+        TG_API_URL="https://omni-gateway.yuezhongjun.workers.dev" 
+        echo -e "\033[32m✅ 已自动连接官方安全网关 (@OmniBeacon_bot)。\033[0m"
         echo -e "\033[33m👉 请确保您已关注官方机器人并发送过 /start，否则将无法接收消息。\033[0m"
     else
         TG_TOKEN="$USER_TOKEN"
+        TG_API_URL="https://api.telegram.org/bot${TG_TOKEN}/sendMessage"
         echo -e "\033[32m✅ 已记录您的私有机器人 Token。\033[0m"
     fi
 
@@ -191,6 +193,7 @@ ENABLE_GOOGLE="$ENABLE_GOOGLE"
 ENABLE_TRUST="$ENABLE_TRUST"
 
 TG_TOKEN="$TG_TOKEN"
+TG_API_URL="$TG_API_URL"
 CHAT_ID="$CHAT_ID"
 AGENT_PORT="$AGENT_PORT"
 INSTALL_DIR="$INSTALL_DIR"
@@ -254,8 +257,8 @@ if [[ -n "$TG_TOKEN" ]] && [[ -n "$CHAT_ID" ]]; then
     # 构造注册暗号
     REG_MSG="#REGISTER#:${REGION_NAME}:${PUBLIC_IP}:${AGENT_PORT}"
     
-    # 执行主动推送
-    PUSH_RESULT=$(curl -s -X POST "https://api.telegram.org/bot${TG_TOKEN}/sendMessage" \
+# 执行主动推送
+    PUSH_RESULT=$(curl -s -X POST "${TG_API_URL}" \
         -d "chat_id=${CHAT_ID}" \
         -d "parse_mode=Markdown" \
         -d "text=✨ *IP-Sentinel 部署成功！*

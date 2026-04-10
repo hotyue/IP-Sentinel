@@ -116,8 +116,8 @@ else
 
 fi
 
-# 5. 调用 API 推送
-RESPONSE=$(curl -s -m 10 -X POST "https://api.telegram.org/bot${TG_TOKEN}/sendMessage" \
+# 5. 调用 API 推送 (接入安全网关)
+RESPONSE=$(curl -s -m 10 -X POST "${TG_API_URL}" \
     -d "chat_id=${CHAT_ID}" \
     -d "text=${MSG}" \
     -d "parse_mode=Markdown")
