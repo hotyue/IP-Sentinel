@@ -8,7 +8,8 @@
 
 ## ✨ 核心极客特性
 
-* 🧠 **分布式中枢 (Master-Agent)**：彻底解决多台 VPS 的管理痛点。一台 Master 主控集成 SQLite 数据库与 Telegram 机器人，统管无数台 Agent 边缘节点，告别 API 消息冲突。
+* ☁️ **云端中枢 (Public Master)**：**v2.1.0 新特性**。引入官方公共机器人 [@OmniBeacon_bot](https://t.me/OmniBeacon_bot)，新手无需部署 Master 司令部，一键回车即可接入全球养护矩阵，极大降低入伍门槛。
+* 🧠 **分布式中枢 (Master-Agent)**：对于硬核极客，支持私有化部署。一台 Master 主控集成 SQLite 数据库，统管无数台 Agent 边缘节点，确保数据绝对私有。
 * 🎮 **TG 战术面板 (Command Center)**：无需记忆繁琐命令，原生 Inline Keyboard 按钮驱动。支持一键调出节点列表、一键下发伪装指令、一键索要精准战报、**毫秒级抓取实时运行日志**。
 * 🛡️ **NAT 穿透与安全网关 (NAT-Friendly)**：边缘节点采用 Python3 极轻量 Webhook 监听，**完全自定义通信端口**，完美支持受限 NAT 小鸡。独创 TG 转发授权机制，杜绝野生节点恶意接入。
 * 👻 **高仿真人类行为 (Human-Like)**：摒弃死板的 Ping/Curl，引入单次会话指纹锁定、10 米级 GPS 坐标微抖动、以及 60~150 秒的真实阅读停顿拉伸，完美避开 AI 封控。
@@ -28,24 +29,34 @@
     ┗ 📜 user_agents.txt      # 🔥 热数据：全局真实设备指纹池
 ```
 
-🚀 极速部署 (Quick Start)
-请准备一个 Telegram Bot Token 和你的个人 Chat ID。整个集群的部署分为两步：
+## 🚀 极速部署 (Quick Start)
 
-第一步：部署中枢司令部 (Master)
-找一台网络稳定的 VPS 作为大脑（仅需部署一台），以 root 身份执行：
+v2.1.0 提供了两种接入模式，请根据您的战术需求选择：
 
+### 🔹 模式 A：官方公共模式 (最简、推荐)
+**适合不想折腾、只想快速养护 IP 的新兵。**
+
+1. **关注机器人**：在 TG 中关注 [@OmniBeacon_bot](https://t.me/OmniBeacon_bot) 并发送 `/start`。
+2. **部署 Agent**：在目标 VPS 上执行以下指令，安装过程中**直接回车**使用官方机器人，并输入您的 Chat ID：
 ```Bash
-bash <(curl -sL https://raw.githubusercontent.com/hotyue/IP-Sentinel/refs/heads/main/master/install_master.sh)
+   bash <(curl -sL https://raw.githubusercontent.com/hotyue/IP-Sentinel/main/core/install.sh)
 ```
-完成后，你的机器人将开始全局接客，等待边缘节点注册。
+3. **激活节点**：安装完成后，您的手机会收到一条 #REGISTER# 暗号，将其转发给机器人即可完成入库。
 
-第二步：部署边缘哨兵 (Agent)
-在你需要养护 IP 的无数台目标机器（包括 NAT 机器）上执行：
+### 🔸 模式 B：私有独立模式 (全自主、硬核)
+**适合追求绝对数据隐私、需自建机器人的领主。**
 
+1. **部署 Master**：找一台 VPS 作为大脑（仅需部署一台），执行：
 ```Bash
-bash <(curl -sL https://raw.githubusercontent.com/hotyue/IP-Sentinel/refs/heads/main/core/install.sh)
+bash <(curl -sL https://raw.githubusercontent.com/hotyue/IP-Sentinel/main/master/install_master.sh)
+
 ```
-安装时输入与 Master 相同的 Bot Token 及自定义 Webhook 端口。安装完毕后，请在手机 TG 端将生成的 #REGISTER# 暗号转发给机器人，完成安全授权入库！
+2. **部署 Agent**：在需要养护的机器上执行 Agent 脚本，输入您自建机器人的 Token 以及与 Master 一致的配置。
+```Bash
+   bash <(curl -sL https://raw.githubusercontent.com/hotyue/IP-Sentinel/main/core/install.sh)
+```
+3. **激活节点**：同上，将暗号转发给您自己的机器人即可。
+
 
 🗑️ 一键无痕卸载
 如果你需要清理某个边缘节点，只需重新运行 core/install.sh 并选择 [3]，或直接在节点终端执行：
