@@ -18,6 +18,17 @@ echo "========================================================"
 
 # 1. 依赖检查与安装 (新增 python3 用于轻量级 Webhook 服务)
 echo -e "\n[1/7] 正在安装必要环境依赖 (curl, jq, cron, procps, python3)..."
+
+# ================== [Legacy: Debian 9 APT 源抢修补丁] ==================
+if [ -f /etc/debian_version ] && grep -q -E "^9\." /etc/debian_version; then
+    echo -e "\033[33m⚠️ 检测到 Debian 9 (Stretch)，正在抢修已停用的 APT 档案馆源...\033[0m"
+    echo "deb http://archive.debian.org/debian stretch main" > /etc/apt/sources.list
+    echo "deb http://archive.debian.org/debian-security stretch/updates main" >> /etc/apt/sources.list
+    sed -i '/stretch-updates/d' /etc/apt/sources.list
+    echo 'Acquire::Check-Valid-Until "false";' > /etc/apt/apt.conf.d/99no-check-valid-until
+fi
+# =======================================================================
+
 if [ -f /etc/debian_version ]; then
     apt-get update -y >/dev/null 2>&1
     apt-get install -y curl jq cron procps python3 >/dev/null 2>&1

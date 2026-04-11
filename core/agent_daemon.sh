@@ -115,7 +115,7 @@ class AgentHandler(http.server.BaseHTTPRequestHandler):
                 return
                 
             # 校验 3：HMAC 数据完整性与身份合法性校验
-            msg = f"{req_path}:{req_t}".encode('utf-8')
+            msg = "{}:{}".format(req_path, req_t).encode('utf-8')
             expected_sign = hmac.new(AUTH_TOKEN.encode('utf-8'), msg, hashlib.sha256).hexdigest()
             
             # 使用 compare_digest 防御时序攻击
@@ -189,7 +189,7 @@ class AgentHandler(http.server.BaseHTTPRequestHandler):
                             log_data = html.escape("".join(lines[-15:]))
                 
                 node_name = subprocess.check_output(['hostname']).decode('utf-8').strip()[:15]
-                text_msg = f"📄 <b>[{node_name}] 实时运行日志:</b>\n<pre><code>{log_data}</code></pre>"
+                text_msg = "📄 <b>[{}] 实时运行日志:</b>\n<pre><code>{}</code></pre>".format(node_name, log_data)
                 
                 data = urllib.parse.urlencode({
                     'chat_id': config.get('CHAT_ID', ''),
@@ -205,7 +205,7 @@ class AgentHandler(http.server.BaseHTTPRequestHandler):
                 urllib.request.urlopen(req, timeout=10)
                 
             except Exception as e:
-                print(f"Log transmission failed: {e}")
+                print("Log transmission failed: {}".format(e))
             
         else:
             self.send_response(404)
