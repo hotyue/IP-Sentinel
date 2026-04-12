@@ -90,13 +90,22 @@ log_msg "INFO " "已载入 [${REGION}] 区域白名单，配置库条目: ${#TRU
 log_msg "INFO " "已锁定本地伪装指纹: $(echo $CURRENT_UA | cut -d' ' -f1-2)..."
 
 # -----------------------------------------------------------
-# [V3.2.1 热修复] 网络锚定参数构建 
-# 强制 curl 绑定指定网卡/隧道 IP 出网，防止流量溢出至默认路由
+# [V3.2.1 热修复] 网络锚定与协议自适应构建 
+# 强制 curl 绑定网卡，并自动匹配 IPv4/v6 协议，杜绝 curl 冲突报错
 # -----------------------------------------------------------
 CURL_BIND_OPT=""
+DYNAMIC_IP_PREF="-${IP_PREF:-4}" # 默认提取用户配置
+
 if [[ -n "$BIND_IP" && "$BIND_IP" =~ ^[0-9a-fA-F:\.]+$ ]]; then
     CURL_BIND_OPT="--interface $BIND_IP"
-    log_msg "INFO " "底层路由锁定: 已强制绑定物理出口 IP 出网"
+    # 智能探测：带冒号为 V6，带点号为 V4
+    if [[ "$BIND_IP" == *":"* ]]; then
+        DYNAMIC_IP_PREF="-6"
+        log_msg "INFO " "底层路由锁定: 绑定 IPv6 出口及协议 ($BIND_IP)"
+    elif [[ "$BIND_IP" == *"."* ]]; then
+        DYNAMIC_IP_PREF="-4"
+        log_msg "INFO " "底层路由锁定: 绑定 IPv4 出口及协议 ($BIND_IP)"
+    fi
 fi
 
 STEP_COUNT=$((RANDOM % 4 + 3))
@@ -107,8 +116,8 @@ for ((i=1; i<=STEP_COUNT; i++)); do
     TARGET_URL=${TRUST_URLS[$RANDOM % ${#TRUST_URLS[@]}]}
     
     # [v3.0.1修复] 注入高权重流量时，强制从绑定的 IPv4 或 IPv6 隧道出网
-    # [V3.2.1 热修复] 注入 $CURL_BIND_OPT 确保流量强制走绑定出口
-    HTTP_CODE=$(curl $CURL_BIND_OPT -${IP_PREF:-4} -A "$CURRENT_UA" \
+    # [V3.2.1 热修复] 注入 $CURL_BIND_OPT 与 $DYNAMIC_IP_PREF 协议自适应
+    HTTP_CODE=$(curl $CURL_BIND_OPT $DYNAMIC_IP_PREF -A "$CURRENT_UA" \
         -H "Accept: text/html,application/xhtml+xml;q=0.9,image/avif,image/webp,*/*;q=0.8" \
         -H "Accept-Language: en-US,en;q=0.9" \
         -H "Sec-Fetch-Dest: document" \
@@ -117,7 +126,8 @@ for ((i=1; i<=STEP_COUNT; i++)); do
         --compressed \
         -s -o /dev/null -w "%{http_code}" -m 15 "$TARGET_URL")
 
-    if [[ "$HTTP_CODE" =~ ^(200|301|302)$ ]]; then
+    # 扩大 HTTP 状态码容错区间：包含所有 20x (如亚马逊的 202) 和 30x 重定向
+    if [[ "$HTTP_CODE" =~ ^(20[0-9]|30[1-8])$ ]]; then
         log_msg "EXEC " "动作[$i/$STEP_COUNT]完成 | 状态: $HTTP_CODE | 注入: $TARGET_URL"
         ((SUCCESS_INJECT++))
     else

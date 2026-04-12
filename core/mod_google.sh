@@ -88,13 +88,22 @@ log "$MODULE_NAME" "INFO " "设备指纹锁定: ${SESSION_UA:0:45}..."
 log "$MODULE_NAME" "INFO " "虚拟驻留坐标: $SESSION_BASE_LAT, $SESSION_BASE_LON"
 
 # -----------------------------------------------------------
-# [V3.2.1 热修复] 网络锚定参数构建 
-# 强制 curl 绑定指定网卡/隧道 IP 出网，防止流量溢出至默认路由
+# [V3.2.1 热修复] 网络锚定与协议自适应构建 
+# 强制 curl 绑定网卡，并自动匹配 IPv4/v6 协议，杜绝 curl 冲突报错
 # -----------------------------------------------------------
 CURL_BIND_OPT=""
+DYNAMIC_IP_PREF="-${IP_PREF:-4}" # 默认提取用户配置
+
 if [[ -n "$BIND_IP" && "$BIND_IP" =~ ^[0-9a-fA-F:\.]+$ ]]; then
     CURL_BIND_OPT="--interface $BIND_IP"
-    log "$MODULE_NAME" "INFO " "底层路由锁定: 已强制绑定物理出口 IP 出网"
+    # 智能探测：带冒号为 V6，带点号为 V4
+    if [[ "$BIND_IP" == *":"* ]]; then
+        DYNAMIC_IP_PREF="-6"
+        log "$MODULE_NAME" "INFO " "底层路由锁定: 绑定 IPv6 出口及协议 ($BIND_IP)"
+    elif [[ "$BIND_IP" == *"."* ]]; then
+        DYNAMIC_IP_PREF="-4"
+        log "$MODULE_NAME" "INFO " "底层路由锁定: 绑定 IPv4 出口及协议 ($BIND_IP)"
+    fi
 fi
 
 # --- [行为循环模拟] ---
@@ -112,22 +121,22 @@ for ((i=1; i<=TOTAL_ACTIONS; i++)); do
     # 随机选择一种上网行为
     ACTION_TYPE=$((1 + RANDOM % 4))
     
-    # [V3.2.1 热修复] 将 $CURL_BIND_OPT 注入所有请求
+    # [V3.2.1 热修复] 注入 $CURL_BIND_OPT 与 $DYNAMIC_IP_PREF 协议自适应
     case $ACTION_TYPE in
         1) # 搜索行为
-            CODE=$(curl $CURL_BIND_OPT -${IP_PREF:-4} -m 15 -s -L -o /dev/null -w "%{http_code}" -A "$SESSION_UA" \
+            CODE=$(curl $CURL_BIND_OPT $DYNAMIC_IP_PREF -m 15 -s -L -o /dev/null -w "%{http_code}" -A "$SESSION_UA" \
                  "https://www.google.com/search?q=${ENCODED_KEY}&${LANG_PARAMS}")
             ;;
         2) # 浏览本土新闻
-            CODE=$(curl $CURL_BIND_OPT -${IP_PREF:-4} -m 15 -s -L -o /dev/null -w "%{http_code}" -A "$SESSION_UA" \
+            CODE=$(curl $CURL_BIND_OPT $DYNAMIC_IP_PREF -m 15 -s -L -o /dev/null -w "%{http_code}" -A "$SESSION_UA" \
                  "https://news.google.com/home?${LANG_PARAMS}")
             ;;
         3) # 地图坐标查询
-            CODE=$(curl $CURL_BIND_OPT -${IP_PREF:-4} -m 15 -s -o /dev/null -w "%{http_code}" -A "$SESSION_UA" \
+            CODE=$(curl $CURL_BIND_OPT $DYNAMIC_IP_PREF -m 15 -s -o /dev/null -w "%{http_code}" -A "$SESSION_UA" \
                  "https://www.google.com/maps/search/$${ENCODED_KEY}/@${ACTION_LAT},${ACTION_LON},17z?${LANG_PARAMS}")
             ;;
         4) # 触发移动端系统底层位置检测像素
-            CODE=$(curl $CURL_BIND_OPT -${IP_PREF:-4} -m 10 -s -o /dev/null -w "%{http_code}" -A "$SESSION_UA" \
+            CODE=$(curl $CURL_BIND_OPT $DYNAMIC_IP_PREF -m 10 -s -o /dev/null -w "%{http_code}" -A "$SESSION_UA" \
                  "https://connectivitycheck.gstatic.com/generate_204")
             ;;
     esac
@@ -143,9 +152,9 @@ for ((i=1; i<=TOTAL_ACTIONS; i++)); do
     fi
 done
 
-# --- [结果纠偏自检 (V3.2.2 高精度容错版)] ---
-# [V3.2.2 优化] 同时抓取 HTTP 状态码和最终 URL，防止网络断网导致误判
-PROBE_RESULT=$(curl $CURL_BIND_OPT -${IP_PREF:-4} -m 15 -s -L -o /dev/null -w "%{http_code}|%{url_effective}" https://www.google.com)
+# --- [结果纠偏自检 (V3.2.1 高精度容错版)] ---
+# [V3.2.1 热修复] 探针同样应用 $DYNAMIC_IP_PREF 协议自适应
+PROBE_RESULT=$(curl $CURL_BIND_OPT $DYNAMIC_IP_PREF -m 15 -s -L -o /dev/null -w "%{http_code}|%{url_effective}" https://www.google.com)
 
 # 分离状态码与 URL
 PROBE_CODE=$(echo "$PROBE_RESULT" | cut -d'|' -f1)
@@ -158,7 +167,7 @@ else
     # 核心战术：精准提取最终 URL 的域名部分
     ACTUAL_DOMAIN=$(echo "$FINAL_URL" | awk -F/ '{print $3}')
     
-    # [V3.2.2 优化] 使用通配符 * 剔除任意前缀 (无论是 www.google. 还是 ipv4.google.)
+    # [V3.2.1 优化] 使用通配符 * 剔除任意前缀 (无论是 www.google. 还是 ipv4.google.)
     ACTUAL_SUFFIX=${ACTUAL_DOMAIN#*google.}
 
     # 1. 优先验证：绝对匹配目标后缀 (彻底杜绝 com 包含于 com.hk 的陷阱)
