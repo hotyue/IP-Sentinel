@@ -62,7 +62,7 @@ v3.2.x 提供了两种接入模式，请根据您的战术需求选择：
 1. **关注机器人**：在 TG 中关注 [@OmniBeacon_bot](https://t.me/OmniBeacon_bot) 并发送 `/start`。
 2. **部署 Agent**：在目标 VPS 上执行以下指令，安装过程中**直接回车**使用官方机器人，并输入您的 Chat ID：
 ```Bash
-bash <(curl -sL https://raw.githubusercontent.com/hotyue/IP-Sentinel/main/core/install.sh)
+bash <(curl -sL https://raw.githubusercontent.com/Seameee/IP-Sentinel/main/core/install.sh)
 
 ```
 3. **激活节点**：安装完成后，您的手机会收到一条 #REGISTER# 暗号，将其转发给机器人即可完成入库。
@@ -72,13 +72,13 @@ bash <(curl -sL https://raw.githubusercontent.com/hotyue/IP-Sentinel/main/core/i
 
 1. **部署 Master**：找一台 VPS 作为大脑（仅需部署一台），执行：
 ```Bash
-bash <(curl -sL https://raw.githubusercontent.com/hotyue/IP-Sentinel/main/master/install_master.sh)
+bash <(curl -sL https://raw.githubusercontent.com/Seameee/IP-Sentinel/main/master/install_master.sh)
 
 
 ```
 2. **部署 Agent**：在需要养护的机器上执行 Agent 脚本，输入您自建机器人的 Token 以及与 Master 一致的配置。
 ```Bash
-bash <(curl -sL https://raw.githubusercontent.com/hotyue/IP-Sentinel/main/core/install.sh)
+bash <(curl -sL https://raw.githubusercontent.com/Seameee/IP-Sentinel/main/core/install.sh)
 
 ```
 3. **激活节点**：同上，将暗号转发给您自己的机器人即可。
@@ -89,7 +89,7 @@ bash <(curl -sL https://raw.githubusercontent.com/hotyue/IP-Sentinel/main/core/i
 为了彻底根除僵尸网络特征并修复流量溢出问题，**存量节点必须手动执行覆盖安装**。
 无需卸载，直接在您的所有 Agent 节点上再次运行官方部署指令即可（系统将自动覆盖旧版核心引擎，您的 Token 与绑定身份将完美保留）：
 ```Bash
-bash <(curl -sL https://raw.githubusercontent.com/hotyue/IP-Sentinel/main/core/install.sh)
+bash <(curl -sL https://raw.githubusercontent.com/Seameee/IP-Sentinel/main/core/install.sh)
 
 ```
 
@@ -107,7 +107,7 @@ bash /opt/ip_sentinel/core/uninstall.sh
 *(注意：该分支仅作基础维护，不享受新功能迭代，请尽可能升级你的系统)*
 
 ```bash
-bash <(curl -sL https://raw.githubusercontent.com/hotyue/IP-Sentinel/legacy/core/install.sh)
+bash <(curl -sL https://raw.githubusercontent.com/Seameee/IP-Sentinel/legacy/core/install.sh)
 ```
 
 📡 战术联络 (Community)
