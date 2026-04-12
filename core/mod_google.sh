@@ -139,34 +139,45 @@ for ((i=1; i<=TOTAL_ACTIONS; i++)); do
     fi
 done
 
-# --- [结果纠偏自检 (V3.1.4 绝对精准提取版)] ---
-# [V3.2.1 热修复] 同样为自检探针注入 $CURL_BIND_OPT
-FINAL_URL=$(curl $CURL_BIND_OPT -${IP_PREF:-4} -m 15 -s -L -o /dev/null -w "%{url_effective}" https://www.google.com)
+# --- [结果纠偏自检 (V3.2.2 高精度容错版)] ---
+# [V3.2.2 优化] 同时抓取 HTTP 状态码和最终 URL，防止网络断网导致误判
+PROBE_RESULT=$(curl $CURL_BIND_OPT -${IP_PREF:-4} -m 15 -s -L -o /dev/null -w "%{http_code}|%{url_effective}" https://www.google.com)
 
-# 核心战术：利用 awk 精准提取最终 URL 的域名部分，再剔除 "www.google." 前缀，得到纯粹的后缀
-# 例如: https://www.google.com.hk/?... -> 提取为 "com.hk"
-ACTUAL_DOMAIN=$(echo "$FINAL_URL" | awk -F/ '{print $3}')
-ACTUAL_SUFFIX=${ACTUAL_DOMAIN#www.google.}
+# 分离状态码与 URL
+PROBE_CODE=$(echo "$PROBE_RESULT" | cut -d'|' -f1)
+FINAL_URL=$(echo "$PROBE_RESULT" | cut -d'|' -f2)
 
-# 1. 优先验证：绝对匹配目标后缀 (彻底杜绝 com 包含于 com.hk 的陷阱)
-if [ "$ACTUAL_SUFFIX" == "$VALID_URL_SUFFIX" ]; then
-    STATUS="✅ 目标区域达成 ($ACTUAL_SUFFIX)"
-
-# 2. 核心拦截：精准捕捉送中特征 (com.hk)
-elif [ "$ACTUAL_SUFFIX" == "com.hk" ]; then
-    if [ "$REGION_CODE" == "HK" ]; then
-        STATUS="✅ 目标区域达成 (HK 专属 com.hk)"
-    else
-        STATUS="❌ 严重漂移！判定为送中区 (实际跳往 $ACTUAL_SUFFIX)"
-    fi
-
-# 3. 宽容处理：遵守 Google 无跳转新规 (严格限定必须是纯粹的 com，绝不能是 com.xx)
-elif [ "$ACTUAL_SUFFIX" == "com" ]; then
-    STATUS="🌐 保持通用主站 (留在 .com，受 Google 无跳转新规影响)"
-
-# 4. 跨区漂移：所有预判之外的后缀，全部视为异常
+# 0. 致命拦截：网络断开、DNS 解析失败或严重超时
+if [ "$PROBE_CODE" == "000" ] || [ -z "$FINAL_URL" ]; then
+    STATUS="🚨 探针失效 (网络阻断或底层路由异常)"
 else
-    STATUS="⚠️ 跨区跳板漂移 (当前实际归属: $ACTUAL_SUFFIX)"
+    # 核心战术：精准提取最终 URL 的域名部分
+    ACTUAL_DOMAIN=$(echo "$FINAL_URL" | awk -F/ '{print $3}')
+    
+    # [V3.2.2 优化] 使用通配符 * 剔除任意前缀 (无论是 www.google. 还是 ipv4.google.)
+    ACTUAL_SUFFIX=${ACTUAL_DOMAIN#*google.}
+
+    # 1. 优先验证：绝对匹配目标后缀 (彻底杜绝 com 包含于 com.hk 的陷阱)
+    if [ "$ACTUAL_SUFFIX" == "$VALID_URL_SUFFIX" ]; then
+        STATUS="✅ 目标区域达成 ($ACTUAL_SUFFIX)"
+
+    # 2. 核心拦截：精准捕捉送中特征 (com.hk)
+    elif [ "$ACTUAL_SUFFIX" == "com.hk" ]; then
+        if [ "$REGION_CODE" == "HK" ]; then
+            STATUS="✅ 目标区域达成 (HK 专属 com.hk)"
+        else
+            STATUS="❌ 严重漂移！判定为送中区 (实际跳往 $ACTUAL_SUFFIX)"
+        fi
+
+    # 3. 宽容处理：遵守 Google 无跳转新规 (严格限定必须是纯粹的 com)
+    # [视觉优化] 留在 .com 代表 IP 极度纯净未被区域沙盒锁定，计入成功战绩！
+    elif [ "$ACTUAL_SUFFIX" == "com" ]; then
+        STATUS="✅ 目标区域达成 (免签停留 .com 通用主站)"
+
+    # 4. 跨区漂移：所有预判之外的后缀，全部视为异常
+    else
+        STATUS="⚠️ 跨区跳板漂移 (当前实际归属: $ACTUAL_SUFFIX)"
+    fi
 fi
 
 log "$MODULE_NAME" "SCORE" "自检结论: $STATUS"
