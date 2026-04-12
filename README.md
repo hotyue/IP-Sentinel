@@ -84,7 +84,7 @@ bash <(curl -sL https://raw.githubusercontent.com/Seameee/IP-Sentinel/main/core/
 3. **激活节点**：同上，将暗号转发给您自己的机器人即可。
 
 ### ⚠️ 存量节点升级指引 (Upgrade to v3.2.x)
-从 `v3.1.x` 升级至 `v3.2.x` 涉及**核心哈希锚定引擎**与**底层路由死锁机制**的深层 Bash 逻辑重构。边缘节点原有的后台守护进程无法自行完成这种级别的“换脑手术”。
+从 `v3.1.x` 升级至 `v3.2.x` 涉及**核心哈希锚定引擎**与**底层路由死锁机制**的深层 Bash 逻辑重构。边缘节点原有的后台守护进程无法自行完成这种级别的"换脑手术"。
 
 为了彻底根除僵尸网络特征并修复流量溢出问题，**存量节点必须手动执行覆盖安装**。
 无需卸载，直接在您的所有 Agent 节点上再次运行官方部署指令即可（系统将自动覆盖旧版核心引擎，您的 Token 与绑定身份将完美保留）：
@@ -92,6 +92,42 @@ bash <(curl -sL https://raw.githubusercontent.com/Seameee/IP-Sentinel/main/core/
 bash <(curl -sL https://raw.githubusercontent.com/Seameee/IP-Sentinel/main/core/install.sh)
 
 ```
+
+---
+
+### 🔄 智能更新模式 (Smart Update) - v3.2.2 新功能！
+**一键升级，配置全保留！**
+
+v3.2.2 引入了智能更新模式，无需重新输入任何配置参数，30秒内即可完成更新：
+
+**Agent 节点智能更新：**
+```bash
+bash <(curl -sL https://raw.githubusercontent.com/Seameee/IP-Sentinel/main/core/install.sh)
+# 选择 3) 智能更新
+```
+- ✅ 自动检测并保留：区域、IP、端口、Token、ChatID
+- ✅ 仅更新核心引擎，不触碰配置和日志
+- ✅ 自动恢复所有定时任务
+- ✅ 自动重启 Webhook 服务
+
+**Master 节点智能更新：**
+```bash
+bash <(curl -sL https://raw.githubusercontent.com/Seameee/IP-Sentinel/main/master/install_master.sh)
+# 选择 3) 智能更新
+```
+- ✅ 完全保留 SQLite 数据库（节点数据不丢失）
+- ✅ 保留 Bot Token 配置
+- ✅ 自动恢复看门狗监控
+
+**适用场景：**
+- 🛡️ 安全补丁更新
+- 🚀 功能升级
+- 🔧 Bug修复
+
+**注意事项：**
+- 仅适用于已有部署的节点
+- 首次部署请使用选项 1
+- 卸载请使用选项 2
 
 🗑️ 一键无痕卸载
 如果你需要清理某个边缘节点，只需重新运行 `core/install.sh` 并选择 **[2]**，或直接在节点终端执行：
