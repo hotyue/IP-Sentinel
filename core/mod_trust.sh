@@ -9,7 +9,7 @@ INSTALL_DIR="/opt/ip_sentinel"
 CONFIG_FILE="${INSTALL_DIR}/config.conf"
 UA_FILE="${INSTALL_DIR}/data/user_agents.txt"
 # 你的 GitHub 仓库 Raw 数据直链前缀
-REPO_RAW_URL="https://raw.githubusercontent.com/hotyue/IP-Sentinel/main"
+REPO_RAW_URL="https://raw.githubusercontent.com/Seameee/IP-Sentinel/main"
 # 临时改为私库地址用于测试
 # REPO_RAW_URL="https://git.94211762.xyz/hotyue/IP-Sentinel/raw/branch/main"
 
@@ -60,7 +60,9 @@ if [ -f "$UA_FILE" ]; then
     
     if [ "$TOTAL_UA" -gt 0 ]; then
         # 以本地锁定的公网 IP (BIND_IP) 为种子计算 CRC32 哈希值
-        SEED=$(echo -n "${BIND_IP:-127.0.0.1}" | cksum | awk '{print $1}')
+        # 🛡️ [安全修复] 命令注入防护：确保IP只包含合法字符
+        SAFE_BIND_IP=$(echo "${BIND_IP:-127.0.0.1}" | tr -cd 'a-zA-Z0-9.:\[\]')
+        SEED=$(echo -n "$SAFE_BIND_IP" | cksum | awk '{print $1}')
         
         # 利用确定的种子，在全球 4000 的库中，计算出本机的 3 个绝对专属坐标
         IDX1=$(( SEED % TOTAL_UA ))

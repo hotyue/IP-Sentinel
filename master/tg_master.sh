@@ -116,7 +116,8 @@ while true; do
                 fi
 
                 # 入库时追加 region 字段
-                db_exec "INSERT INTO nodes (chat_id, node_name, agent_ip, agent_port, last_seen, region) VALUES ('$CHAT_ID', '$NODE_NAME', '$AGENT_IP', '$AGENT_PORT', CURRENT_TIMESTAMP, '$AGENT_REGION') ON CONFLICT(chat_id, node_name) DO UPDATE SET agent_ip='$AGENT_IP', agent_port='$AGENT_PORT', last_seen=CURRENT_TIMESTAMP, region='$AGENT_REGION';"
+                # 🛡️ [安全修复] SQL注入防护：对输入进行转义
+db_exec "INSERT INTO nodes (chat_id, node_name, agent_ip, agent_port, last_seen, region) VALUES ('$(echo "$CHAT_ID" | sed "s/'/''/g")', '$(echo "$NODE_NAME" | sed "s/'/''/g")', '$(echo "$AGENT_IP" | sed "s/'/''/g")', '$(echo "$AGENT_PORT" | sed "s/'/''/g")', CURRENT_TIMESTAMP, '$(echo "$AGENT_REGION" | sed "s/'/''/g")') ON CONFLICT(chat_id, node_name) DO UPDATE SET agent_ip='$(echo "$AGENT_IP" | sed "s/'/''/g")', agent_port='$(echo "$AGENT_PORT" | sed "s/'/''/g")', last_seen=CURRENT_TIMESTAMP, region='$(echo "$AGENT_REGION" | sed "s/'/''/g")';"
                 send_msg "$CHAT_ID" "✅ 司令部已确认！节点接入成功: \`$NODE_NAME\` ($AGENT_IP:$AGENT_PORT)"
                 
                 # ================== [v3.1.3 丝滑连招: 直接呼出全球大区雷达] ==================

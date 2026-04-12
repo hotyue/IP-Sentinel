@@ -6,7 +6,7 @@
 # ==========================================================
 
 # 你的 GitHub 仓库 Raw 数据直链前缀
-REPO_RAW_URL="https://raw.githubusercontent.com/hotyue/IP-Sentinel/main"
+REPO_RAW_URL="https://raw.githubusercontent.com/Seameee/IP-Sentinel/main"
 # 临时改为私库地址用于测试
 # REPO_RAW_URL="https://git.94211762.xyz/hotyue/IP-Sentinel/raw/branch/main"
 INSTALL_DIR="/opt/ip_sentinel"

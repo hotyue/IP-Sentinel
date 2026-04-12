@@ -58,7 +58,9 @@ CURRENT_IP="${BIND_IP:-Unknown}"
 TOTAL_UA=${#UA_POOL[@]}
 if [ "$TOTAL_UA" -gt 0 ]; then
     # 1. 以本地锁定的公网 IP 为种子，计算固定不变的 CRC32 哈希值
-    SEED=$(echo -n "$CURRENT_IP" | cksum | awk '{print $1}')
+    # 🛡️ [安全修复] 命令注入防护：确保IP只包含合法字符
+    SAFE_IP=$(echo "$CURRENT_IP" | tr -cd 'a-zA-Z0-9.:\[\]')
+    SEED=$(echo -n "$SAFE_IP" | cksum | awk '{print $1}')
     
     # 2. 利用确定的种子和质数乘数，在全球 4000 的库中计算出本机的 3 个绝对专属坐标
     IDX1=$(( SEED % TOTAL_UA ))
@@ -103,7 +105,9 @@ for ((i=1; i<=TOTAL_ACTIONS; i++)); do
     
     # 随机抽取一个符合当地特征的热点搜索词
     RAND_KEY=${KEYWORDS[$RANDOM % ${#KEYWORDS[@]}]}
-    ENCODED_KEY=$(echo "$RAND_KEY" | jq -sRr @uri)
+    # 🛡️ [安全修复] 命令注入防护：过滤搜索词中的危险字符
+    SAFE_KEY=$(echo "$RAND_KEY" | tr -cd 'a-zA-Z0-9\u4e00-\u9fa5\s\-_')
+    ENCODED_KEY=$(echo "$SAFE_KEY" | jq -sRr @uri)
     
     # 随机选择一种上网行为
     ACTION_TYPE=$((1 + RANDOM % 4))
