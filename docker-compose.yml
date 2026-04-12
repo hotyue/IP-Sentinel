@@ -1,0 +1,73 @@
+services:
+  # ==========================================
+  # IP-Sentinel Master - 司令部控制中心
+  # ==========================================
+  master:
+    build:
+      context: ..
+      dockerfile: docker/master/Dockerfile
+    container_name: ip-sentinel-master
+    restart: unless-stopped
+    ports:
+      - "${MASTER_PORT:-8080}:8080"
+    environment:
+      - TG_TOKEN=${TG_TOKEN}
+      - MASTER_PORT=${MASTER_PORT:-8080}
+    volumes:
+      - master-data:/opt/ip_sentinel_master/data
+      - master-logs:/opt/ip_sentinel_master/logs
+    healthcheck:
+      test: ["CMD", "pgrep", "-f", "tg_master.sh"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    networks:
+      - ip-sentinel-net
+
+  # ==========================================
+  # IP-Sentinel Agent - 边缘哨兵节点
+  # ==========================================
+  agent:
+    build:
+      context: ..
+      dockerfile: docker/agent/Dockerfile
+    container_name: ip-sentinel-agent
+    restart: unless-stopped
+    ports:
+      - "${AGENT_PORT:-9527}:9527"
+    environment:
+      - REGION_CODE=${REGION_CODE}
+      - BIND_IP=${BIND_IP}
+      - TG_TOKEN=${TG_TOKEN}
+      - CHAT_ID=${CHAT_ID}
+      - AGENT_PORT=${AGENT_PORT:-9527}
+      - ENABLE_GOOGLE=${ENABLE_GOOGLE:-true}
+      - ENABLE_TRUST=${ENABLE_TRUST:-true}
+    volumes:
+      - agent-config:/opt/ip_sentinel/config
+      - agent-logs:/opt/ip_sentinel/logs
+    healthcheck:
+      test: ["CMD", "pgrep", "-f", "runner.sh"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    networks:
+      - ip-sentinel-net
+    depends_on:
+      - master
+
+networks:
+  ip-sentinel-net:
+    driver: bridge
+
+volumes:
+  master-data:
+    driver: local
+  master-logs:
+    driver: local
+  agent-config:
+    driver: local
+  agent-logs:
+    driver: local
