@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # ==========================================================
-# 脚本名称: install.sh (IP-Sentinel 分布式边缘节点部署脚本 v3.3.0 - OTA 活体引擎)
+# 脚本名称: install.sh (IP-Sentinel 分布式边缘节点部署脚本 v3.3.1 - OTA 活体引擎)
 # 核心功能: 区域选择、模块按需开启、官方机器人一键配置、平滑热更新、分频错峰调度
 # ==========================================================
 
@@ -307,13 +307,34 @@ if [ "$UPGRADE_MODE" == "false" ]; then
         fi
     fi
 
-    # 终极修复：为 IPv6 自动穿上防护装甲（方括号），解决 Master 拼接 URL 报错问题
+    # ================== [v3.3.1 核心重构: 身份剥离与双栈实弹嗅探] ==================
+    # 1. 固化对外通讯身份 (自动穿透方括号护甲)
     if [[ "$PUBLIC_IP" == *":"* ]] && [[ "$PUBLIC_IP" != *"["* ]]; then
-        BIND_IP="[${PUBLIC_IP}]"
+        SAFE_PUBLIC_IP="[${PUBLIC_IP}]"
     else
-        BIND_IP="$PUBLIC_IP"
+        SAFE_PUBLIC_IP="$PUBLIC_IP"
     fi
-    echo -e "\033[32m✅ 哨兵锚点已永久锁定至: $BIND_IP\033[0m"
+
+    # 2. 实弹打靶测试 (NAT 环境嗅探与双栈自适应)
+    echo -n "🕵️ 正在进行出站链路试射 (NAT环境与双栈嗅探)..."
+    RAW_TEST_IP=$(echo "$SAFE_PUBLIC_IP" | tr -d '[]')
+    
+    # 智能切换靶机：V6 机器打 Cloudflare V6 节点，V4 机器打 1.1.1.1
+    if [[ "$RAW_TEST_IP" == *":"* ]]; then
+        TEST_TARGET="https://[2606:4700:4700::1111]"
+    else
+        TEST_TARGET="https://1.1.1.1"
+    fi
+    
+    # 执行实弹试射
+    if curl --interface "$RAW_TEST_IP" -sI -m 3 "$TEST_TARGET" >/dev/null 2>&1; then
+        echo -e " \033[32m✅ 原生直连，物理网卡死锁已激活。\033[0m"
+        BIND_IP="$SAFE_PUBLIC_IP"
+    else
+        echo -e " \033[33m⚠️ 发现 NAT/虚拟路由架构，自动卸除网卡枷锁，交由内核路由。\033[0m"
+        BIND_IP=""
+    fi
+    echo -e "\033[32m✅ 哨兵对外联络点已永久锁定至: $SAFE_PUBLIC_IP\033[0m"
     # ========================================================================
 
     # 5. 远程拉取冷数据并解析固化
@@ -354,8 +375,9 @@ AGENT_PORT="$AGENT_PORT"
 INSTALL_DIR="$INSTALL_DIR"
 LOG_FILE="${INSTALL_DIR}/logs/sentinel.log"
 
-# [v3.0.1新增修改 2: 网络栈锚点锁定配置，供其他脚本读取] 
+# [v3.3.1修改: 双核身份剥离配置] 
 IP_PREF="$IP_PREF"
+PUBLIC_IP="$SAFE_PUBLIC_IP"
 BIND_IP="$BIND_IP"
 EOF
 
@@ -417,8 +439,8 @@ if [[ -n "$TG_TOKEN" ]] && [[ -n "$CHAT_ID" ]]; then
     
     # [v3.0.1新增修改 3: 删除原来的 curl 取 IP，直接使用我们上方锁定的 BIND_IP]
     # 并提前写入 IP 缓存，彻底阻断 agent_daemon 首次启动时的重复推送
-    # [修复竞态]: 提前写入 IP 缓存，彻底阻断 agent_daemon 首次启动时的抢跑推送
-    echo "$BIND_IP" > "${INSTALL_DIR}/core/.last_ip"
+    # [修复竞态]: 提前写入公网 IP 缓存，彻底阻断 agent_daemon 首次启动时的抢跑推送
+    echo "$SAFE_PUBLIC_IP" > "${INSTALL_DIR}/core/.last_ip"
     
     # 双保险守护进程看门狗
     echo "@reboot nohup bash ${INSTALL_DIR}/core/agent_daemon.sh >/dev/null 2>&1 &" >> /tmp/cron_backup
@@ -442,13 +464,13 @@ if [[ -n "$TG_TOKEN" ]] && [[ -n "$CHAT_ID" ]]; then
             -d "parse_mode=Markdown" \
             -d "text=✨ *IP-Sentinel 引擎热更新完成！*
 📍 节点：\`${NODE_NAME}\`
-🌐 IP：\`${BIND_IP}\`
-🚀 状态：v3.3.0 OTA 动态活体养护引擎已部署" >/dev/null 2>&1
+🌐 IP：\`${SAFE_PUBLIC_IP}\`
+🚀 状态：v3.3.1 OTA 动态活体养护引擎已部署" >/dev/null 2>&1
         echo -e "\033[32m✅ 升级成功通知已推送到您的 Telegram！\033[0m"
     else
         echo -e "\n📡 正在向指挥部发送注册暗号..."
         # 构造注册暗号 (V3.1.3 协议升级: 携带 REGION_CODE 大区标识)
-        REG_MSG="#REGISTER#|${REGION_CODE}|${NODE_NAME}|${BIND_IP}|${AGENT_PORT}"
+        REG_MSG="#REGISTER#|${REGION_CODE}|${NODE_NAME}|${SAFE_PUBLIC_IP}|${AGENT_PORT}"
         
         # 执行主动推送
         PUSH_RESULT=$(curl -s -X POST "${TG_API_URL}" \
@@ -456,7 +478,7 @@ if [[ -n "$TG_TOKEN" ]] && [[ -n "$CHAT_ID" ]]; then
             -d "parse_mode=Markdown" \
             -d "text=✨ *IP-Sentinel 部署成功！*
 📍 区域：${REGION_NAME}
-🌐 IP：${BIND_IP}
+🌐 IP：${SAFE_PUBLIC_IP}
 🔌 端口：${AGENT_PORT}
 
 🔑 *请点击下方指令复制并回复给机器人：*
@@ -489,8 +511,8 @@ if [[ -n "$TG_TOKEN" ]]; then
     elif command -v firewall-cmd >/dev/null 2>&1 && systemctl is-active firewalld | grep -qw active; then
         FW_MSG="firewall-cmd --zone=public --add-port=$AGENT_PORT/tcp --permanent && firewall-cmd --reload"
     elif command -v iptables >/dev/null 2>&1; then
-        # 智能双栈雷达：根据绑定的 IP 属性，动态下发对应的防火墙放行指令
-        if [[ "$BIND_IP" == *":"* ]]; then
+        # 智能双栈雷达：根据对外公网 IP 属性，动态下发对应的防火墙放行指令
+        if [[ "$SAFE_PUBLIC_IP" == *":"* ]]; then
             FW_MSG="ip6tables -I INPUT -p tcp --dport $AGENT_PORT -j ACCEPT"
         else
             FW_MSG="iptables -I INPUT -p tcp --dport $AGENT_PORT -j ACCEPT"
