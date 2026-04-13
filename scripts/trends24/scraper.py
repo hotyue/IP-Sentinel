@@ -61,8 +61,11 @@ def fetch_trends_from_meta(country_url: str) -> List[str]:
             # 格式: "Today's top X (Twitter) trends and hashtags in Country: keyword1, keyword2..."
             if ':' in description:
                 keywords_part = description.split(':')[-1].strip()
-                # 移除末尾的 ". Explore more..." 或其他说明文字
-                keywords_part = keywords_part.split('.')[0]
+                # 只移除末尾的 "Explore more..." 或类似说明文字，保留关键词中的句点
+                # 匹配常见的结尾模式
+                keywords_part = re.sub(r'\s*\.\s*Explore more.*$', '', keywords_part, flags=re.IGNORECASE)
+                keywords_part = re.sub(r'\s*\.\s*See more.*$', '', keywords_part, flags=re.IGNORECASE)
+                keywords_part = re.sub(r'\s*\.\s*Learn more.*$', '', keywords_part, flags=re.IGNORECASE)
                 # 按逗号分割并清理
                 keywords = [kw.strip() for kw in keywords_part.split(',') if kw.strip()]
                 # 只返回前 KEYWORDS_PER_COUNTRY 个
@@ -200,8 +203,8 @@ def main():
     print(f"[INFO] 处理完成: 成功 {success_count}, 失败 {fail_count}")
     print(f"{'='*60}\n")
     
-    # 如果有失败，返回非零退出码
-    if fail_count > 0:
+    # 只有全部失败时才返回非零退出码，部分失败继续执行
+    if success_count == 0 and fail_count > 0:
         sys.exit(1)
     
     sys.exit(0)
