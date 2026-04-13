@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # ==========================================================
-# 脚本名称: install.sh (IP-Sentinel 分布式边缘节点部署脚本 v3.2.2 - Global Nexus)
+# 脚本名称: install.sh (IP-Sentinel 分布式边缘节点部署脚本 v3.2.3 - Global Nexus)
 # 核心功能: 区域选择、模块按需开启、官方机器人一键配置、平滑热更新
 # ==========================================================
 
@@ -497,7 +497,12 @@ if [[ -n "$TG_TOKEN" ]]; then
     elif command -v firewall-cmd >/dev/null 2>&1 && systemctl is-active firewalld | grep -qw active; then
         FW_MSG="firewall-cmd --zone=public --add-port=$AGENT_PORT/tcp --permanent && firewall-cmd --reload"
     elif command -v iptables >/dev/null 2>&1; then
-        FW_MSG="iptables -I INPUT -p tcp --dport $AGENT_PORT -j ACCEPT"
+        # 智能双栈雷达：根据绑定的 IP 属性，动态下发对应的防火墙放行指令
+        if [[ "$BIND_IP" == *":"* ]]; then
+            FW_MSG="ip6tables -I INPUT -p tcp --dport $AGENT_PORT -j ACCEPT"
+        else
+            FW_MSG="iptables -I INPUT -p tcp --dport $AGENT_PORT -j ACCEPT"
+        fi
     fi
     
     echo -e "\033[33m⚠️ 警告：请务必确保本机及云服务商安全组放行了 TCP $AGENT_PORT 端口！\033[0m"
