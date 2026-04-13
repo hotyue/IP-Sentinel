@@ -20,6 +20,10 @@
 
  - 🖧 **底层路由死锁 (Hard-Bind Routing)**：v3.2.1 热修复升级。底层探测引擎强力接管 curl 核心参数 (--interface)，强制将发出的每一滴伪装流量死死绑定在您设定的物理网卡或隧道 IP 上，彻底杜绝双栈或多网卡环境下的流量溢出漏洞。
 
+- 🎯 **多级容灾与高精度探针 (High-Precision Probe)**：v3.2.2 底层重构。重写战报模块与底层协议自适应逻辑，植入多级 ISP 容灾探针链路，并按“底层数据共识原则”智能清洗冗余 AS 号。确保在纯 V6、隧道或弱网环境下，数据获取依然 100% 精准畅通。
+
+ - 🔄 **平滑热更新装甲 (Smooth Upgrade Engine)**：v3.2.2 体验进化。全系植入状态机嗅探逻辑。无论是 Master 司令部还是 Agent 边缘节点，再次执行部署脚本时将自动识别并继承历史配置、SQLite 数据库与锚定 IP，一键回车即可瞬间完成无损换代，告别繁琐的重复配置。
+ 
  - ☁️ **云端中枢 (Public Master)**：引入官方公共机器人 @OmniBeacon_bot，新手无需部署 Master 司令部，部署 Agent 时一键回车即可调用官方加密网关，30 秒极速入伍！
 
  - 🧠 **分布式中枢 (Master-Agent)**：对于硬核极客，支持私有化部署。一台 Master 主控集成 SQLite 数据库，统管无数台 Agent 边缘节点，确保数据绝对私有。
@@ -62,7 +66,7 @@ v3.2.x 提供了两种接入模式，请根据您的战术需求选择：
 1. **关注机器人**：在 TG 中关注 [@OmniBeacon_bot](https://t.me/OmniBeacon_bot) 并发送 `/start`。
 2. **部署 Agent**：在目标 VPS 上执行以下指令，安装过程中**直接回车**使用官方机器人，并输入您的 Chat ID：
 ```Bash
-bash <(curl -sL https://raw.githubusercontent.com/Seameee/IP-Sentinel/main/core/install.sh)
+bash <(curl -sL https://raw.githubusercontent.com/hotyue/IP-Sentinel/main/core/install.sh)
 
 ```
 3. **激活节点**：安装完成后，您的手机会收到一条 #REGISTER# 暗号，将其转发给机器人即可完成入库。
@@ -72,62 +76,23 @@ bash <(curl -sL https://raw.githubusercontent.com/Seameee/IP-Sentinel/main/core/
 
 1. **部署 Master**：找一台 VPS 作为大脑（仅需部署一台），执行：
 ```Bash
-bash <(curl -sL https://raw.githubusercontent.com/Seameee/IP-Sentinel/main/master/install_master.sh)
-
+bash <(curl -sL https://raw.githubusercontent.com/hotyue/IP-Sentinel/main/master/install_master.sh)
 
 ```
 2. **部署 Agent**：在需要养护的机器上执行 Agent 脚本，输入您自建机器人的 Token 以及与 Master 一致的配置。
 ```Bash
-bash <(curl -sL https://raw.githubusercontent.com/Seameee/IP-Sentinel/main/core/install.sh)
+bash <(curl -sL https://raw.githubusercontent.com/hotyue/IP-Sentinel/main/core/install.sh)
 
 ```
 3. **激活节点**：同上，将暗号转发给您自己的机器人即可。
 
-### ⚠️ 存量节点升级指引 (Upgrade to v3.2.x)
-从 `v3.1.x` 升级至 `v3.2.x` 涉及**核心哈希锚定引擎**与**底层路由死锁机制**的深层 Bash 逻辑重构。边缘节点原有的后台守护进程无法自行完成这种级别的"换脑手术"。
+### ⚠️ 平滑升级指引 (Upgrade to v3.2.2)
 
-为了彻底根除僵尸网络特征并修复流量溢出问题，**存量节点必须手动执行覆盖安装**。
-无需卸载，直接在您的所有 Agent 节点上再次运行官方部署指令即可（系统将自动覆盖旧版核心引擎，您的 Token 与绑定身份将完美保留）：
-```Bash
-bash <(curl -sL https://raw.githubusercontent.com/Seameee/IP-Sentinel/main/core/install.sh)
+得益于 **v3.2.2 全新引入的平滑热更新引擎 (Smooth Upgrade Engine)**，系统升级现已变得极其优雅与安全。
 
-```
+无需卸载旧版本，无论您是要升级 Agent 边缘节点还是 Master 控制中枢，只需在您的终端中**再次运行上方对应的官方部署指令**。
 
----
-
-### 🔄 智能更新模式 (Smart Update) - v3.2.2 新功能！
-**一键升级，配置全保留！**
-
-v3.2.2 引入了智能更新模式，无需重新输入任何配置参数，30秒内即可完成更新：
-
-**Agent 节点智能更新：**
-```bash
-bash <(curl -sL https://raw.githubusercontent.com/Seameee/IP-Sentinel/main/core/install.sh)
-# 选择 3) 智能更新
-```
-- ✅ 自动检测并保留：区域、IP、端口、Token、ChatID
-- ✅ 仅更新核心引擎，不触碰配置和日志
-- ✅ 自动恢复所有定时任务
-- ✅ 自动重启 Webhook 服务
-
-**Master 节点智能更新：**
-```bash
-bash <(curl -sL https://raw.githubusercontent.com/Seameee/IP-Sentinel/main/master/install_master.sh)
-# 选择 3) 智能更新
-```
-- ✅ 完全保留 SQLite 数据库（节点数据不丢失）
-- ✅ 保留 Bot Token 配置
-- ✅ 自动恢复看门狗监控
-
-**适用场景：**
-- 🛡️ 安全补丁更新
-- 🚀 功能升级
-- 🔧 Bug修复
-
-**注意事项：**
-- 仅适用于已有部署的节点
-- 首次部署请使用选项 1
-- 卸载请使用选项 2
+安装雷达会自动嗅探您的历史部署状态（包括您的 Token、区域设定、SQLite 数据库及物理网卡锚点）。当询问是否平滑升级时，您只需**一路回车 (默认选 y)**，脚本将在短短 3 秒内瞬间完成核心装甲的无损换脑手术，您的所有战术资产将得到 100% 保留！
 
 🗑️ 一键无痕卸载
 如果你需要清理某个边缘节点，只需重新运行 `core/install.sh` 并选择 **[2]**，或直接在节点终端执行：
@@ -143,7 +108,7 @@ bash /opt/ip_sentinel/core/uninstall.sh
 *(注意：该分支仅作基础维护，不享受新功能迭代，请尽可能升级你的系统)*
 
 ```bash
-bash <(curl -sL https://raw.githubusercontent.com/Seameee/IP-Sentinel/legacy/core/install.sh)
+bash <(curl -sL https://raw.githubusercontent.com/hotyue/IP-Sentinel/legacy/core/install.sh)
 ```
 
 📡 战术联络 (Community)

@@ -18,19 +18,53 @@ if [ -z "$TG_TOKEN" ] || [ -z "$CHAT_ID" ]; then
     exit 0
 fi
 
-# 2. 节点元数据抓取 (v3.0.1修复: 严格使用配置中的协议探测出口与多节点容灾)
+# 2. 节点元数据抓取 (v3.2.2 协议自适应与多级容灾版)
 NODE_NAME=$(hostname | cut -c 1-15)
 
-# 多节点容灾探测
-CURRENT_IP=$( (curl -${IP_PREF:-4} -s -m 5 api.ip.sb/ip || curl -${IP_PREF:-4} -s -m 5 ifconfig.me) 2>/dev/null | tr -d '[:space:]' )
+# --- [防线 1: 底层路由锁定与协议自适应] ---
+CURL_BIND_OPT=""
+DYNAMIC_IP_PREF="-${IP_PREF:-4}"
+
+if [[ -n "$BIND_IP" && "$BIND_IP" =~ ^[0-9a-fA-F:\.]+$ ]]; then
+    CURL_BIND_OPT="--interface $BIND_IP"
+    if [[ "$BIND_IP" == *":"* ]]; then
+        DYNAMIC_IP_PREF="-6"
+    elif [[ "$BIND_IP" == *"."* ]]; then
+        DYNAMIC_IP_PREF="-4"
+    fi
+fi
+
+# 多节点容灾探测出口 IP (注入协议自适应)
+CURRENT_IP=$( (curl $CURL_BIND_OPT $DYNAMIC_IP_PREF -s -m 5 api.ip.sb/ip || curl $CURL_BIND_OPT $DYNAMIC_IP_PREF -s -m 5 ifconfig.me) 2>/dev/null | tr -d '[:space:]' )
 # 强制兜底：如果所有外部 API 都挂了，直接使用本地强行锁定的 BIND_IP
 [ -z "$CURRENT_IP" ] && CURRENT_IP="$BIND_IP"
 
 # 为可能获取到的 IPv6 自动添加方括号护甲
 [[ "$CURRENT_IP" == *":"* ]] && [[ "$CURRENT_IP" != *"["* ]] && CURRENT_IP="[${CURRENT_IP}]"
 
-# 智能判断 IP 属性
-ISP_INFO=$(curl -${IP_PREF:-4} -s -m 5 api.ip.sb/geoip | jq -r '.organization' 2>/dev/null)
+# --- [防线 2: 多级 ISP 容灾探针链路] ---
+ISP_INFO=""
+
+# 探针 A: 纯文本 API (免 jq，极速稳定)
+ISP_INFO=$(curl $CURL_BIND_OPT $DYNAMIC_IP_PREF -s -m 5 ipinfo.io/org 2>/dev/null)
+
+# 探针 B: 备用纯文本 API
+if [ -z "$ISP_INFO" ] || [[ "$ISP_INFO" == *"error"* ]]; then
+    ISP_INFO=$(curl $CURL_BIND_OPT $DYNAMIC_IP_PREF -s -m 5 ip-api.com/line/?fields=isp 2>/dev/null)
+fi
+
+# 探针 C: 原版的 JSON API (需要 jq 兜底)
+if [ -z "$ISP_INFO" ] || [[ "$ISP_INFO" == *"error"* ]]; then
+    if command -v jq &> /dev/null; then
+        ISP_INFO=$(curl $CURL_BIND_OPT $DYNAMIC_IP_PREF -s -m 5 api.ip.sb/geoip | jq -r '.organization' 2>/dev/null)
+    fi
+fi
+
+# --- [防线 3: 数据清洗 (遵循底层共识原则)] ---
+# 剔除 ipinfo 返回的开头 AS 号 (例如 "AS137535 JT TELECOM" -> "JT TELECOM")
+ISP_INFO=$(echo "$ISP_INFO" | sed -E 's/^AS[0-9]+ //')
+
+# 最终兜底判断
 [ -z "$ISP_INFO" ] || [ "$ISP_INFO" == "null" ] && ISP_INFO="未知 ISP"
 
 if [[ "$ISP_INFO" == *"Cloudflare"* ]]; then
