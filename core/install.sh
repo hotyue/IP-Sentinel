@@ -1,8 +1,8 @@
 #!/bin/bash
 
 # ==========================================================
-# 脚本名称: install.sh (IP-Sentinel 分布式边缘节点部署脚本 v3.3.2 - OTA 活体引擎)
-# 核心功能: 区域选择、模块按需开启、官方机器人一键配置、平滑热更新、分频错峰调度
+# 脚本名称: install.sh (IP-Sentinel 分布式边缘节点部署脚本 v3.4.0 - OTA 活体引擎)
+# 核心功能: 区域选择、模块按需开启、官方机器人一键配置、平滑热更新、版本状态机路由
 # ==========================================================
 
 # 你的 GitHub 仓库 Raw 数据直链前缀
@@ -12,8 +12,17 @@ REPO_RAW_URL="https://raw.githubusercontent.com/hotyue/IP-Sentinel/main"
 INSTALL_DIR="/opt/ip_sentinel"
 CONFIG_FILE="${INSTALL_DIR}/config.conf"
 
+# [v3.4.0 核心: 全局版本控制锚点]
+TARGET_VERSION="3.4.0"
+
+# 轻量级版本号比对函数 (例如: version_lt "3.3.1" "3.4.0" 返回 true)
+version_lt() {
+    test "$(printf '%s\n' "$1" "$2" | sort -V | head -n 1)" = "$1" && test "$1" != "$2"
+}
+
 echo "========================================================"
 echo "      🛡️ 欢迎使用 IP-Sentinel (边缘节点 Edge Agent)"
+echo "               当前安装包版本: v${TARGET_VERSION}"
 echo "========================================================"
 
 # 1. 依赖检查与安装 (新增 python3 用于轻量级 Webhook 服务)
@@ -354,9 +363,10 @@ if [ "$UPGRADE_MODE" == "false" ]; then
     LANG_PARAMS=$(jq -r '.google_module.lang_params' "$REGION_JSON_FILE")
     VALID_URL_SUFFIX=$(jq -r '.google_module.valid_url_suffix' "$REGION_JSON_FILE")
 
-    # 写入本地静态配置文件
+    # 写入本地静态配置文件 (v3.4.0 引入版本锚点)
     cat > "$CONFIG_FILE" << EOF
 # IP-Sentinel 本地固化配置 (生成时间: $(date '+%Y-%m-%d %H:%M:%S'))
+AGENT_VERSION="$TARGET_VERSION"
 REGION_CODE="$REGION_CODE"
 REGION_NAME="$REGION_NAME"
 BASE_LAT="$BASE_LAT"
@@ -492,49 +502,59 @@ fi
 crontab /tmp/cron_backup
 rm -f /tmp/cron_backup
 
-# ================== [v3.2.2 优化: 战报通知分流 (注册/升级)] ==================
+# ================== [v3.4.0 核心: 状态机驱动的热更新路由] ==================
 if [[ -n "$TG_TOKEN" ]] && [[ -n "$CHAT_ID" ]]; then
-    # [v3.3.2 修复: 引入 IP 哈希防同名覆盖机制]
+    # 构造当前节点的唯一代号 (v3.3.2引入的防撞甲，已修正连接符)
     IP_HASH=$(echo "${SAFE_PUBLIC_IP:-127.0.0.1}" | md5sum | cut -c 1-4 | tr 'a-z' 'A-Z')
     NODE_NAME="$(hostname | cut -c 1-10)-${IP_HASH}"
     
-    # ⚠️ 核心修复：提前构造注册暗号，供全新安装与首次架构重组使用
     REG_MSG="#REGISTER#|${REGION_CODE}|${NODE_NAME}|${SAFE_PUBLIC_IP}|${AGENT_PORT}"
     
     if [ "$UPGRADE_MODE" == "true" ]; then
-        # 【核心兼容逻辑】检查是否是首次升级到哈希命名架构
-        if ! grep -q "NAME_HASHED=\"true\"" "$CONFIG_FILE"; then
-            echo "NAME_HASHED=\"true\"" >> "$CONFIG_FILE"
-            
-            echo -e "\n📡 正在向指挥部发送架构重组通知..."
+        # 读取本地老版本号，如果没有则视为远古版本 v3.3.1
+        OLD_VERSION=$(grep "^AGENT_VERSION=" "$CONFIG_FILE" | cut -d'"' -f2)
+        [ -z "$OLD_VERSION" ] && OLD_VERSION="3.3.1"
+        
+        # [路由表 1]: 跨代兼容 (老版本 < v3.3.2)
+        # 必须强制下发带有 #REGISTER# 的警告，引导长官重新同步哈希身份
+        if version_lt "$OLD_VERSION" "3.3.2"; then
+            echo -e "\n📡 [路由枢纽] 正在执行跨代架构重组 (v${OLD_VERSION} -> v${TARGET_VERSION})..."
             curl -s -X POST "${TG_API_URL}" \
                 -d "chat_id=${CHAT_ID}" \
                 -d "parse_mode=Markdown" \
                 -d "text=✨ *IP-Sentinel 引擎热更新完成！*
 📍 节点：\`${NODE_NAME}\`
 🌐 IP：\`${SAFE_PUBLIC_IP}\`
-🚀 状态：v3.3.2 OTA 动态活体引擎已部署
+🚀 状态：v${TARGET_VERSION} OTA 动态活体引擎已部署
 
 ⚠️ *战区架构已重组，请务必点击下方指令并发送，以同步新的防撞档案：*
 \`${REG_MSG}\`" >/dev/null 2>&1
             echo -e "\033[32m✅ 升级通知已推送！请前往 TG 点击注册指令完成身份同步！\033[0m"
+            
+        # [路由表 2]: 现代静默升级 (老版本 >= v3.3.2)
         else
-            echo -e "\n📡 正在向指挥部发送静默升级战报..."
+            echo -e "\n📡 [路由枢纽] 正在执行静默平滑升级 (v${OLD_VERSION} -> v${TARGET_VERSION})..."
             curl -s -X POST "${TG_API_URL}" \
                 -d "chat_id=${CHAT_ID}" \
                 -d "parse_mode=Markdown" \
                 -d "text=✨ *IP-Sentinel 引擎热更新完成！*
 📍 节点：\`${NODE_NAME}\`
 🌐 IP：\`${SAFE_PUBLIC_IP}\`
-🚀 状态：v3.3.2 OTA 动态活体引擎已部署" >/dev/null 2>&1
+🚀 状态：v${TARGET_VERSION} OTA 动态活体引擎已部署" >/dev/null 2>&1
             echo -e "\033[32m✅ 升级成功通知已推送到您的 Telegram！\033[0m"
         fi
-    else
-        # 全新安装：直接打上哈希基因锁
-        echo "NAME_HASHED=\"true\"" >> "$CONFIG_FILE"
         
+        # [清理遗留垃圾并刷新版本号]
+        sed -i '/^NAME_HASHED=/d' "$CONFIG_FILE" 2>/dev/null # 抹除上个版本的临时基因锁
+        if grep -q "^AGENT_VERSION=" "$CONFIG_FILE"; then
+            sed -i "s/^AGENT_VERSION=.*/AGENT_VERSION=\"$TARGET_VERSION\"/" "$CONFIG_FILE"
+        else
+            echo "AGENT_VERSION=\"$TARGET_VERSION\"" >> "$CONFIG_FILE"
+        fi
+        
+    else
+        # [全新安装路由]
         echo -e "\n📡 正在向指挥部发送注册暗号..."
-        # 执行主动推送
         PUSH_RESULT=$(curl -s -X POST "${TG_API_URL}" \
             -d "chat_id=${CHAT_ID}" \
             -d "parse_mode=Markdown" \
