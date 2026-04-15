@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # ==========================================================
-# 脚本名称: uninstall.sh (IP-Sentinel 一键卸载脚本 V3.4.0 焦土版)
+# 脚本名称: uninstall.sh (IP-Sentinel 一键卸载脚本 - 动态锚点版)
 # 核心功能: 无痕清理守护进程、定时任务、运行目录及临时缓存
 # ==========================================================
 
@@ -10,7 +10,7 @@ INSTALL_DIR="/opt/ip_sentinel"
 echo "========================================================"
 echo "      🗑️ 准备卸载 IP-Sentinel (边缘节点 Edge Agent)"
 
-# [v3.4.0 优化] 尝试获取当前本地版本号
+# [核心: 动态读取并播报即将销毁的本地版本号]
 CONFIG_FILE="${INSTALL_DIR}/config.conf"
 if [ -f "$CONFIG_FILE" ]; then
     CURRENT_VER=$(grep "^AGENT_VERSION=" "$CONFIG_FILE" | cut -d'"' -f2)
