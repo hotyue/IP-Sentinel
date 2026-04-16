@@ -41,22 +41,32 @@ db_exec() {
     sqlite3 "$DB_FILE" "$1"
 }
 
-# ================== [v3.0.4 核心: 动态 HMAC 签名生成器] ==================
-# 用法: generate_signed_url <IP> <PORT> <PATH>
+# ================== [v3.5.2 军工级: 全链路 HMAC 签名生成器] ==================
+# 用法: generate_signed_url <IP> <PORT> <PATH> [B64_PAYLOAD]
 generate_signed_url() {
     local target_ip=$1
     local target_port=$2
     local action_path=$3
+    local extra_payload=$4
     local current_t=$(date +%s)
     
-    # 构建加密载荷: "路径:时间戳"
+    # 构建基础加密载荷: "路径:时间戳"
     local payload="${action_path}:${current_t}"
     
-    # 使用 CHAT_ID 作为密钥，生成 SHA256 HMAC 签名
-    local signature=$(echo -n "$payload" | openssl dgst -sha256 -hmac "$CHAT_ID" | awk '{print $NF}')
+    # [安全升级] 如果存在 B64 数据，将其卷入签名载荷，彻底封死中间人篡改漏洞
+    if [ -n "$extra_payload" ]; then
+        payload="${payload}:${extra_payload}"
+    fi
     
-    # 返回最终带签名的 URL
-    echo "http://${target_ip}:${target_port}${action_path}?t=${current_t}&sign=${signature}"
+    # [安全升级] 引入高熵复合密钥 (CHAT_ID + TG_TOKEN)，防暴力破解与社工泄露
+    local secret_key="${CHAT_ID}:${TG_TOKEN}"
+    local signature=$(echo -n "$payload" | openssl dgst -sha256 -hmac "$secret_key" | awk '{print $NF}')
+    
+    local final_url="http://${target_ip}:${target_port}${action_path}?t=${current_t}&sign=${signature}"
+    if [ -n "$extra_payload" ]; then
+        final_url="${final_url}&b64=${extra_payload}"
+    fi
+    echo "$final_url"
 }
 # ========================================================================
 
@@ -337,18 +347,20 @@ while true; do
                     if [ -n "$AGENT_IP" ] && [ -n "$AGENT_PORT" ]; then
                         send_msg "$CHAT_ID" "⏳ 正在向 \`$TARGET_NODE\` 下发重命名指令，正在建立加密隧道..."
                         
-                        TARGET_URL=$(generate_signed_url "$AGENT_IP" "$AGENT_PORT" "/trigger_rename")
-                        
                         # [绝密防线: Base64 编码绕过一切传输限制与 WAF 拦截]
                         ALIAS_B64=$(echo -n "$NEW_ALIAS" | base64 | tr -d '\n' | tr '+/' '-_')
-                        TARGET_URL="${TARGET_URL}&b64=${ALIAS_B64}"
+                        
+                        # [安全升级] 将 B64 数据作为第4个参数传入，完美卷入 HMAC 签名引擎
+                        TARGET_URL=$(generate_signed_url "$AGENT_IP" "$AGENT_PORT" "/trigger_rename" "$ALIAS_B64")
                         
                         RESPONSE=$(curl -s -m 5 "$TARGET_URL" || echo "FAILED")
                         
                         if [ "$RESPONSE" == "FAILED" ]; then
                             send_msg "$CHAT_ID" "❌ 指令下发超时！请检查节点连通性。"
                         elif [[ "$RESPONSE" == *"Action Accepted"* ]]; then
-                            send_msg "$CHAT_ID" "✅ 通讯成功！节点别名已下发: \`$NEW_ALIAS\`\n*(注: 节点随后将自动向中枢报备刷新面板)*"
+                            # [极致丝滑] 确认 Agent 修改成功后，Master 立即自动同步本地 SQLite，终结手动复制！
+                            db_exec "UPDATE nodes SET node_alias='$NEW_ALIAS' WHERE chat_id='$CHAT_ID' AND node_name='$TARGET_NODE';"
+                            send_msg "$CHAT_ID" "✅ 通讯成功！节点别名已下发: \`$NEW_ALIAS\`\n*(司令部档案已自动刷新，雷达面板已同步)*"
                         else
                             # 增加输出 RESPONSE 调试信息，排查任何拦截死因
                             send_msg "$CHAT_ID" "⚠️ 节点拒绝了请求，请确保 Agent 已更新至 v3.5.2\n(回传信息: \`${RESPONSE}\`)"

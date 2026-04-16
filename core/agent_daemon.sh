@@ -83,15 +83,19 @@ import time
 
 PORT = int(sys.argv[1])
 
-# 🛡️ 提取全局鉴权 Token (利用 CHAT_ID 作为 PSK 预共享密钥)
+# 🛡️ [军工级升级] 提取全局复合鉴权 Token
 AUTH_TOKEN = ""
+TG_TOKEN = ""
 if os.path.exists('/opt/ip_sentinel/config.conf'):
     with open('/opt/ip_sentinel/config.conf', 'r') as f:
         for line in f:
             line = line.strip()
             if line.startswith('CHAT_ID='):
                 AUTH_TOKEN = line.split('=', 1)[1].strip('"\'')
-                break
+            elif line.startswith('TG_TOKEN='):
+                TG_TOKEN = line.split('=', 1)[1].strip('"\'')
+# 构建高熵密钥
+SECRET_KEY = f"{AUTH_TOKEN}:{TG_TOKEN}"
 
 class AgentHandler(http.server.BaseHTTPRequestHandler):
     def do_GET(self):
@@ -123,9 +127,14 @@ class AgentHandler(http.server.BaseHTTPRequestHandler):
                 self.end_headers()
                 return
                 
-            # 校验 3：HMAC 数据完整性与身份合法性校验
-            msg = f"{req_path}:{req_t}".encode('utf-8')
-            expected_sign = hmac.new(AUTH_TOKEN.encode('utf-8'), msg, hashlib.sha256).hexdigest()
+            # 校验 3：HMAC 数据完整性与身份合法性校验 (全参数卷入)
+            msg_str = f"{req_path}:{req_t}"
+            b64_alias = query.get('b64', [''])[0]
+            if b64_alias:
+                msg_str += f":{b64_alias}"
+                
+            msg = msg_str.encode('utf-8')
+            expected_sign = hmac.new(SECRET_KEY.encode('utf-8'), msg, hashlib.sha256).hexdigest()
             
             # 使用 compare_digest 防御时序攻击
             if not hmac.compare_digest(expected_sign, req_sign):
@@ -276,23 +285,7 @@ class AgentHandler(http.server.BaseHTTPRequestHandler):
                         
                     with open(config_path, 'w', encoding='utf-8') as f:
                         f.writelines(lines)
-                        
-                    # 4. 绕过 WAF：交由系统底层 curl 异步发包
-                    region = config_dict.get('REGION_CODE', 'UNKNOWN')
-                    node_name = config_dict.get('NODE_NAME', 'UNKNOWN')
-                    agent_ip = config_dict.get('PUBLIC_IP', '127.0.0.1')
-                    agent_port = config_dict.get('AGENT_PORT', '9527')
-                    chat_id = config_dict.get('CHAT_ID', '')
-                    tg_url = config_dict.get('TG_API_URL', '')
-                    
-                    if tg_url and chat_id:
-                        reg_msg = f"#REGISTER#|{region}|{node_name}|{agent_ip}|{agent_port}|{safe_alias}"
-                        subprocess.Popen([
-                            'curl', '-s', '-m', '10', '-X', 'POST', tg_url,
-                            '-d', f'chat_id={chat_id}',
-                            '-d', f'text={reg_msg}'
-                        ])
-                    
+
                     self.send_response(200)
                     self.send_header("Content-type", "text/plain")
                     self.end_headers()
