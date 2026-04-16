@@ -362,6 +362,25 @@ if [ "$UPGRADE_MODE" == "false" ]; then
     echo -e "\033[32m✅ 哨兵对外联络点已永久锁定至: $SAFE_PUBLIC_IP\033[0m"
     # ========================================================================
 
+    # ================== [v3.5.2 新增: 节点不可变主键与展示别名] ==================
+    IP_HASH=$(echo "${SAFE_PUBLIC_IP:-127.0.0.1}" | md5sum | cut -c 1-4 | tr 'a-z' 'A-Z')
+    NODE_NAME="$(hostname | cut -c 1-10)-${IP_HASH}"
+    NODE_ALIAS="$NODE_NAME"
+
+    if [[ -n "$TG_TOKEN" ]] && [[ -n "$CHAT_ID" ]]; then
+        echo -e "\n\033[36m[4.8/7] 节点展示别名设定 (用于面板友好显示)...\033[0m"
+        echo -e "💡 系统底层的不可变主键为: \033[33m${NODE_NAME}\033[0m"
+        read -p "请输入节点展示别名 (如'纽约机房', 回车使用默认): " CUSTOM_ALIAS
+
+        if [ -n "$CUSTOM_ALIAS" ]; then
+            # 🛡️ 强制字符清洗：防御 Shell 注入，并限制长度防刷屏
+            NODE_ALIAS=$(echo "$CUSTOM_ALIAS" | tr -d '"'\''\`\$\|&;<>\n\r' | cut -c 1-20)
+            [ -z "$NODE_ALIAS" ] && NODE_ALIAS="$NODE_NAME"
+        fi
+        echo -e "✅ 已锁定节点展示别名: \033[32m$NODE_ALIAS\033[0m"
+    fi
+    # ========================================================================
+
     # 5. 远程拉取冷数据并解析固化
     echo -e "\n[5/7] 正在从云端数据仓库拉取 [${CITY_NAME}] 节点的底层规则..."
     REGION_JSON_FILE="${INSTALL_DIR}/data/regions/${COUNTRY_ID}/${STATE_ID}/${CITY_ID}.json"
@@ -405,6 +424,10 @@ LOG_FILE="${INSTALL_DIR}/logs/sentinel.log"
 IP_PREF="$IP_PREF"
 PUBLIC_IP="$SAFE_PUBLIC_IP"
 BIND_IP="$BIND_IP"
+
+# [v3.5.2新增: 双轨身份系统]
+NODE_NAME="$NODE_NAME"
+NODE_ALIAS="$NODE_ALIAS"
 EOF
 
     # ================== [v3.0.3 变更: 敏感配置文件权限收敛] ==================
@@ -449,6 +472,22 @@ if [ "$UPGRADE_MODE" == "true" ]; then
     else
         # 如果是未来再升级，配置文件已是最新，直接提取变量供安装脚本尾部使用
         SAFE_PUBLIC_IP=$(grep "^PUBLIC_IP=" "$CONFIG_FILE" | cut -d'"' -f2)
+    fi
+
+    # [v3.5.2 热修复] 兼容老版本没有 NODE_NAME 和 NODE_ALIAS 的情况，无损补齐
+    if ! grep -q "^NODE_NAME=" "$CONFIG_FILE"; then
+        TMP_HASH=$(echo "${SAFE_PUBLIC_IP:-127.0.0.1}" | md5sum | cut -c 1-4 | tr 'a-z' 'A-Z')
+        NODE_NAME="$(hostname | cut -c 1-10)-${TMP_HASH}"
+        NODE_ALIAS="$NODE_NAME"
+        echo "NODE_NAME=\"$NODE_NAME\"" >> "$CONFIG_FILE"
+        echo "NODE_ALIAS=\"$NODE_ALIAS\"" >> "$CONFIG_FILE"
+    else
+        NODE_NAME=$(grep "^NODE_NAME=" "$CONFIG_FILE" | cut -d'"' -f2)
+        NODE_ALIAS=$(grep "^NODE_ALIAS=" "$CONFIG_FILE" | cut -d'"' -f2)
+        if [ -z "$NODE_ALIAS" ]; then
+            NODE_ALIAS="$NODE_NAME"
+            echo "NODE_ALIAS=\"$NODE_ALIAS\"" >> "$CONFIG_FILE"
+        fi
     fi
 fi
 # ========================================================================
@@ -520,11 +559,9 @@ rm -f /tmp/cron_backup
 
 # ================== [v3.4.0 核心: 状态机驱动的热更新路由] ==================
 if [[ -n "$TG_TOKEN" ]] && [[ -n "$CHAT_ID" ]]; then
-    # 构造当前节点的唯一代号 (v3.3.2引入的防撞甲，已修正连接符)
-    IP_HASH=$(echo "${SAFE_PUBLIC_IP:-127.0.0.1}" | md5sum | cut -c 1-4 | tr 'a-z' 'A-Z')
-    NODE_NAME="$(hostname | cut -c 1-10)-${IP_HASH}"
     
-    REG_MSG="#REGISTER#|${REGION_CODE}|${NODE_NAME}|${SAFE_PUBLIC_IP}|${AGENT_PORT}"
+    # [v3.5.2 核心] 发送携带双轨身份的注册指令 (追加 NODE_ALIAS 作为第 6 个字段)
+    REG_MSG="#REGISTER#|${REGION_CODE}|${NODE_NAME}|${SAFE_PUBLIC_IP}|${AGENT_PORT}|${NODE_ALIAS}"
     
     if [ "$UPGRADE_MODE" == "true" ]; then
         # 读取本地老版本号，如果没有则视为远古版本 v3.3.1
@@ -539,7 +576,7 @@ if [[ -n "$TG_TOKEN" ]] && [[ -n "$CHAT_ID" ]]; then
                 -d "chat_id=${CHAT_ID}" \
                 -d "parse_mode=Markdown" \
                 -d "text=✨ *IP-Sentinel 引擎热更新完成！*
-📍 节点：\`${NODE_NAME}\`
+📍 节点：\`${NODE_ALIAS}\`
 🌐 IP：\`${SAFE_PUBLIC_IP}\`
 🚀 状态：v${TARGET_VERSION} OTA 动态活体引擎已部署
 
@@ -554,7 +591,7 @@ if [[ -n "$TG_TOKEN" ]] && [[ -n "$CHAT_ID" ]]; then
                 -d "chat_id=${CHAT_ID}" \
                 -d "parse_mode=Markdown" \
                 -d "text=✨ *IP-Sentinel 引擎热更新完成！*
-📍 节点：\`${NODE_NAME}\`
+📍 节点：\`${NODE_ALIAS}\`
 🌐 IP：\`${SAFE_PUBLIC_IP}\`
 🚀 状态：v${TARGET_VERSION} OTA 动态活体引擎已部署" >/dev/null 2>&1
             echo -e "\033[32m✅ 升级成功通知已推送到您的 Telegram！\033[0m"
