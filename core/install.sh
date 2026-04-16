@@ -53,6 +53,9 @@ echo "  1) 🚀 部署边缘节点 (进入全球节点配置)"
 echo "  2) 🗑️ 一键卸载 IP-Sentinel"
 read -p "请输入选择 [1-2] (默认1): " ACTION_CHOICE
 
+# [v3.5.2 修复] 防止用户直接回车导致变量为空，从而漏过下方的平滑升级判定
+ACTION_CHOICE=${ACTION_CHOICE:-1}
+
 if [ "$ACTION_CHOICE" == "2" ]; then
     echo -e "\n⏳ 正在拉取卸载程序..."
     curl -sL "${REPO_RAW_URL}/core/uninstall.sh" -o "/tmp/ip_uninstall.sh"
