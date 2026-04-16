@@ -277,22 +277,7 @@ class AgentHandler(http.server.BaseHTTPRequestHandler):
                     with open(config_path, 'w', encoding='utf-8') as f:
                         f.writelines(lines)
                         
-                    # 4. 绕过 WAF：交由系统底层 curl 异步发包
-                    region = config_dict.get('REGION_CODE', 'UNKNOWN')
-                    node_name = config_dict.get('NODE_NAME', 'UNKNOWN')
-                    agent_ip = config_dict.get('PUBLIC_IP', '127.0.0.1')
-                    agent_port = config_dict.get('AGENT_PORT', '9527')
-                    chat_id = config_dict.get('CHAT_ID', '')
-                    tg_url = config_dict.get('TG_API_URL', '')
-                    
-                    if tg_url and chat_id:
-                        reg_msg = f"#REGISTER#|{region}|{node_name}|{agent_ip}|{agent_port}|{safe_alias}"
-                        subprocess.Popen([
-                            'curl', '-s', '-m', '10', '-X', 'POST', tg_url,
-                            '-d', f'chat_id={chat_id}',
-                            '-d', f'text={reg_msg}'
-                        ])
-                    
+                    # [v3.5.2 极致丝滑] 移除向 TG 推送冗余报文的逻辑，直接向 Master 回执成功状态即可
                     self.send_response(200)
                     self.send_header("Content-type", "text/plain")
                     self.end_headers()
