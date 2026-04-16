@@ -57,7 +57,14 @@
           "name": "United Kingdom (英国)",
           "keyword_file": "kw_UK.txt",
           "states": [
-            { "id": "Default", "name": "Default State", "cities": [ { "id": "London", "name": "London (伦敦)" } ] }
+            {
+              "id": "Default",
+              "name": "Default State",
+              "cities": [
+                { "id": "London", "name": "London (伦敦)" },
+                { "id": "Coventry", "name": "Coventry (考文垂)" }
+              ]
+            }
           ]
         },
         {
@@ -160,7 +167,14 @@
           "name": "Canada (加拿大)",
           "keyword_file": "kw_CA.txt",
           "states": [
-            { "id": "Default", "name": "Default State", "cities": [ { "id": "Toronto", "name": "Toronto (多伦多)" } ] }
+            {
+              "id": "Default",
+              "name": "Default State",
+              "cities": [
+                { "id": "Toronto", "name": "Toronto (多伦多)" },
+                { "id": "Montreal", "name": "Montreal (蒙特利尔)" }
+              ]
+            }
           ]
         }
       ]
