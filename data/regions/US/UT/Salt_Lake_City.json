@@ -1,0 +1,5 @@
+{
+  "region_name": "United States - Salt Lake City",
+  "google_module": { "base_lat": 40.7608, "base_lon": -111.8910, "lang_params": "hl=en&gl=US", "valid_url_suffix": "com" },
+  "trust_module": { "white_urls": [ "https://en.wikipedia.org/wiki/Special:Random", "https://www.yahoo.com/", "https://www.target.com/", "https://www.npr.org/", "https://www.weather.com/", "https://www.amazon.com/", "https://www.cdc.gov/" ] }
+}

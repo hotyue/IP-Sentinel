@@ -1,0 +1,5 @@
+{
+  "region_name": "United States - Warrenville",
+  "google_module": { "base_lat": 41.8164, "base_lon": -88.1748, "lang_params": "hl=en&gl=US", "valid_url_suffix": "com" },
+  "trust_module": { "white_urls": [ "https://en.wikipedia.org/wiki/Special:Random", "https://www.yahoo.com/", "https://www.target.com/", "https://www.npr.org/", "https://www.weather.com/", "https://www.amazon.com/", "https://www.cdc.gov/" ] }
+}
