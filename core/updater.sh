@@ -10,9 +10,9 @@ CONFIG_FILE="${INSTALL_DIR}/config.conf"
 UA_TIME_FILE="${INSTALL_DIR}/core/.ua_last_update"
 
 # GitHub 仓库 Raw 数据直链前缀
-# REPO_RAW_URL="https://raw.githubusercontent.com/hotyue/IP-Sentinel/main"
+REPO_RAW_URL="https://raw.githubusercontent.com/hotyue/IP-Sentinel/main"
 # 临时改为开发地址用于测试
-REPO_RAW_URL="https://raw.githubusercontent.com/hotyue/IP-Sentinel/dev-v3.6.0"
+# REPO_RAW_URL="https://raw.githubusercontent.com/hotyue/IP-Sentinel/dev-v3.6.0"
 
 # 1. 加载本地冷数据配置
 if [ ! -f "$CONFIG_FILE" ]; then
