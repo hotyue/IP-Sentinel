@@ -292,7 +292,48 @@ class AgentHandler(http.server.BaseHTTPRequestHandler):
             self.send_response(400)
             self.end_headers()
             self.wfile.write(b"400 Bad Request: Invalid Characters\n")
+
+        # ================== [v3.5.3 新增: 模块动态启停接口] ==================
+        elif req_path == '/trigger_toggle':
+            mod_name = query.get('mod', [''])[0]
+            target_state = query.get('state', [''])[0].lower()
             
+            if mod_name not in ['google', 'trust'] or target_state not in ['true', 'false']:
+                self.send_response(400)
+                self.end_headers()
+                self.wfile.write(b"400 Bad Request: Invalid parameters\n")
+                return
+                
+            config_key = f"ENABLE_{mod_name.upper()}="
+            
+            try:
+                config_path = '/opt/ip_sentinel/config.conf'
+                with open(config_path, 'r', encoding='utf-8', errors='ignore') as f:
+                    lines = f.readlines()
+                
+                found = False
+                for i, line in enumerate(lines):
+                    if line.startswith(config_key):
+                        lines[i] = f'{config_key}"{target_state}"\n'
+                        found = True
+                        break
+                        
+                if not found:
+                    lines.append(f'{config_key}"{target_state}"\n')
+                    
+                with open(config_path, 'w', encoding='utf-8') as f:
+                    f.writelines(lines)
+                
+                self.send_response(200)
+                self.send_header("Content-type", "text/plain")
+                self.end_headers()
+                self.wfile.write(b"Action Accepted: trigger_toggle\n")
+                
+            except Exception as e:
+                self.send_response(500)
+                self.end_headers()
+                self.wfile.write(f"500 Internal Error: {str(e)}\n".encode('utf-8'))
+
         else:
             self.send_response(404)
             self.end_headers()
