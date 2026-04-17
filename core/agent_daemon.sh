@@ -296,7 +296,6 @@ class AgentHandler(http.server.BaseHTTPRequestHandler):
         # ================== [v3.6.0 新增: 远程 OTA 升级接口] ==================
         elif req_path == '/trigger_upgrade':
             try:
-                # 每次执行前实时读取底层权限，防御越权
                 allow_ota = "false"
                 if os.path.exists('/opt/ip_sentinel/config.conf'):
                     with open('/opt/ip_sentinel/config.conf', 'r') as f:
@@ -305,22 +304,28 @@ class AgentHandler(http.server.BaseHTTPRequestHandler):
                                 allow_ota = line.strip().split('=', 1)[1].strip('"\'')
                                 break
                 
-                # 底层熔断机制生效：若未授权，直接物理拒绝
                 if allow_ota.lower() != "true":
                     self.send_response(403)
                     self.end_headers()
                     self.wfile.write(b"403 Forbidden: OTA Disabled\n")
                     return
                 
+                # 1. 瞬间返回成功状态，并彻底结束当前的 HTTP 处理函数，关闭 TCP 连接
                 self.send_response(200)
                 self.send_header("Content-type", "text/plain")
                 self.end_headers()
                 self.wfile.write(b"Action Accepted: trigger_upgrade\n")
-                self.wfile.flush() # [修复 1] 强制刷新 TCP 缓冲区，立刻把成功回执发给 Master
                 
-                # [修复 2] 采用 nohup 剥离进程，并延迟 3 秒再执行，防止 install.sh 一启动就把 Webhook 自己秒杀了
-                cmd = "nohup bash -c 'sleep 3 && export SILENT_OTA=true && curl -sL https://raw.githubusercontent.com/hotyue/IP-Sentinel/main/core/install.sh | bash' >/dev/null 2>&1 &"
-                subprocess.Popen(cmd, shell=True, close_fds=True)
+                # 2. 引入 Python 独立守护线程，完全剥离套接字继承
+                import threading
+                def do_ota():
+                    time.sleep(2) # 等待 2 秒，确保前台 HTTP 响应已完全送达 Master
+                    # 将变量直接前置注入 bash 进程，这是最坚不可摧的无状态执行方案
+                    os.system("curl -sL https://raw.githubusercontent.com/hotyue/IP-Sentinel/main/core/install.sh | SILENT_OTA=true bash >/dev/null 2>&1")
+                
+                # 启动后台幽灵线程，主干立刻 return
+                threading.Thread(target=do_ota, daemon=True).start()
+
             except Exception as e:
                 self.send_response(500)
                 self.end_headers()
