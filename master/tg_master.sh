@@ -36,6 +36,13 @@ edit_msg() {
         -d "chat_id=$1" -d "message_id=$2" -d "text=$3" -d "parse_mode=Markdown" > /dev/null
 }
 
+# [v3.5.3 新增: 支持内联键盘的原位 UI 重绘函数]
+edit_ui() {
+    curl -s -X POST "https://api.telegram.org/bot${TG_TOKEN}/editMessageText" \
+        -H "Content-Type: application/json" \
+        -d "{\"chat_id\":\"$1\",\"message_id\":\"$2\",\"text\":\"$3\",\"parse_mode\":\"Markdown\",\"reply_markup\":{\"inline_keyboard\":$4}}" > /dev/null
+}
+
 # 数据库执行函数
 db_exec() {
     sqlite3 "$DB_FILE" "$1"
@@ -60,10 +67,12 @@ generate_signed_url() {
 }
 # ========================================================================
 
-# ================== [v3.1.3/v3.5.2 核心: 数据库结构无损热升级] ==================
-# 自动探测并增加 region 与 node_alias 字段，屏蔽已存在的报错，保护老节点数据
+# ================== [v3.1.3/v3.5.3 核心: 数据库结构无损热升级] ==================
+# 自动探测并增加缺失字段，屏蔽已存在的报错，保护老节点数据
 db_exec "ALTER TABLE nodes ADD COLUMN region TEXT DEFAULT 'UNKNOWN';" 2>/dev/null
 db_exec "ALTER TABLE nodes ADD COLUMN node_alias TEXT;" 2>/dev/null
+db_exec "ALTER TABLE nodes ADD COLUMN enable_google TEXT DEFAULT 'true';" 2>/dev/null
+db_exec "ALTER TABLE nodes ADD COLUMN enable_trust TEXT DEFAULT 'true';" 2>/dev/null
 # ========================================================================
 
 # --- 核心轮询循环 ---
@@ -276,16 +285,76 @@ while true; do
                     ;;
 
                 manage:*)
-                    # 🛡️ 强制过滤节点物理主键，防止面板渲染时发生 XSS 或注入
                     TARGET_NODE=$(echo "${TEXT#*:}" | tr -cd 'a-zA-Z0-9_.-')
-                    
-                    # [v3.5.2] 提取该节点的展示别名
                     TARGET_ALIAS=$(db_exec "SELECT IFNULL(node_alias, node_name) FROM nodes WHERE chat_id='$CHAT_ID' AND node_name='$TARGET_NODE' LIMIT 1;")
                     [ -z "$TARGET_ALIAS" ] && TARGET_ALIAS="$TARGET_NODE"
                     
-                    # 【核心升级】排版为 4 行 2 列，加入“修改备注”按钮
-                    BTNS="[[{\"text\":\"📍 Google 纠偏\",\"callback_data\":\"google:$TARGET_NODE\"}, {\"text\":\"🛡️ 信用净化\",\"callback_data\":\"trust:$TARGET_NODE\"}], [{\"text\":\"📜 实时日志\",\"callback_data\":\"log:$TARGET_NODE\"}, {\"text\":\"📊 统计战报\",\"callback_data\":\"report:$TARGET_NODE\"}], [{\"text\":\"✏️ 修改节点备注\",\"callback_data\":\"rename:$TARGET_NODE\"}, {\"text\":\"🗑️ 剔除失联节点\",\"callback_data\":\"del:$TARGET_NODE\"}], [{\"text\":\"⬅️ 返回大区目录\",\"callback_data\":\"list_nodes\"}]]"
-                    send_ui "$CHAT_ID" "⚙️ **目标锁定**: \`$TARGET_ALIAS\`\n*(身份标识: $TARGET_NODE)*\n请选择战术动作：" "$BTNS"
+                    # [v3.5.3] 将改名收纳至 L5 高级面板，替换为“高级控制功能”
+                    BTNS="[[{\"text\":\"📍 Google 纠偏\",\"callback_data\":\"google:$TARGET_NODE\"}, {\"text\":\"🛡️ 信用净化\",\"callback_data\":\"trust:$TARGET_NODE\"}], [{\"text\":\"📜 实时日志\",\"callback_data\":\"log:$TARGET_NODE\"}, {\"text\":\"📊 统计战报\",\"callback_data\":\"report:$TARGET_NODE\"}], [{\"text\":\"⚙️ 高级控制功能\",\"callback_data\":\"adv:$TARGET_NODE\"}, {\"text\":\"🗑️ 剔除失联节点\",\"callback_data\":\"del:$TARGET_NODE\"}], [{\"text\":\"⬅️ 返回大区目录\",\"callback_data\":\"list_nodes\"}]]"
+                    
+                    if [ -n "$MSG_ID" ]; then
+                        edit_ui "$CHAT_ID" "$MSG_ID" "⚙️ **目标锁定**: \`$TARGET_ALIAS\`\n*(身份标识: $TARGET_NODE)*\n请选择战术动作：" "$BTNS"
+                    else
+                        send_ui "$CHAT_ID" "⚙️ **目标锁定**: \`$TARGET_ALIAS\`\n*(身份标识: $TARGET_NODE)*\n请选择战术动作：" "$BTNS"
+                    fi
+                    ;;
+
+                adv:*)
+                    # [L5 高级控制面板渲染]
+                    TARGET_NODE=$(echo "${TEXT#*:}" | tr -cd 'a-zA-Z0-9_.-')
+                    TARGET_ALIAS=$(db_exec "SELECT IFNULL(node_alias, node_name) FROM nodes WHERE chat_id='$CHAT_ID' AND node_name='$TARGET_NODE' LIMIT 1;")
+                    [ -z "$TARGET_ALIAS" ] && TARGET_ALIAS="$TARGET_NODE"
+                    
+                    # 抓取当前节点的开关状态
+                    TOGGLE_INFO=$(db_exec "SELECT enable_google, enable_trust FROM nodes WHERE chat_id='$CHAT_ID' AND node_name='$TARGET_NODE' LIMIT 1;")
+                    ST_GOOGLE=$(echo "$TOGGLE_INFO" | cut -d'|' -f1)
+                    ST_TRUST=$(echo "$TOGGLE_INFO" | cut -d'|' -f2)
+                    
+                    # 动态渲染状态机红绿灯 UI
+                    [ "$ST_GOOGLE" == "true" ] && BTN_G="🔴 停用 Google 纠偏" && ACT_G="false" || { BTN_G="🟢 启用 Google 纠偏"; ACT_G="true"; }
+                    [ "$ST_TRUST" == "true" ] && BTN_T="🔴 停用信用净化" && ACT_T="false" || { BTN_T="🟢 启用信用净化"; ACT_T="true"; }
+
+                    BTNS="[[{\"text\":\"$BTN_G\",\"callback_data\":\"toggle:google:$TARGET_NODE:$ACT_G\"}], [{\"text\":\"$BTN_T\",\"callback_data\":\"toggle:trust:$TARGET_NODE:$ACT_T\"}], [{\"text\":\"✏️ 修改节点备注\",\"callback_data\":\"rename:$TARGET_NODE\"}], [{\"text\":\"⬅️ 返回节点面板\",\"callback_data\":\"manage:$TARGET_NODE\"}]]"
+                    
+                    if [ -n "$MSG_ID" ]; then
+                        edit_ui "$CHAT_ID" "$MSG_ID" "⚙️ **高级控制** | \`$TARGET_ALIAS\`\n请下达控制指令：" "$BTNS"
+                    else
+                        send_ui "$CHAT_ID" "⚙️ **高级控制** | \`$TARGET_ALIAS\`\n请下达控制指令：" "$BTNS"
+                    fi
+                    ;;
+
+                toggle:*)
+                    # [动态启停通信闭环]
+                    IFS=':' read -r CMD MOD_NAME TARGET_NODE TARGET_STATE <<< "$TEXT"
+                    CHAT_ID=$(echo "$CHAT_ID" | tr -cd '0-9-')
+                    
+                    AGENT_INFO=$(db_exec "SELECT agent_ip, agent_port FROM nodes WHERE chat_id='$CHAT_ID' AND node_name='$TARGET_NODE' LIMIT 1;")
+                    AGENT_IP=$(echo "$AGENT_INFO" | cut -d'|' -f1)
+                    AGENT_PORT=$(echo "$AGENT_INFO" | cut -d'|' -f2)
+                    
+                    if [ -n "$AGENT_IP" ] && [ -n "$AGENT_PORT" ]; then
+                        TARGET_URL=$(generate_signed_url "$AGENT_IP" "$AGENT_PORT" "/trigger_toggle")
+                        TARGET_URL="${TARGET_URL}&mod=${MOD_NAME}&state=${TARGET_STATE}"
+                        
+                        RESPONSE=$(curl -s -m 5 "$TARGET_URL" || echo "FAILED")
+                        if [[ "$RESPONSE" == *"Action Accepted"* ]]; then
+                            # 下发成功，更新 DB，原位重绘
+                            db_exec "UPDATE nodes SET enable_${MOD_NAME}='$TARGET_STATE' WHERE chat_id='$CHAT_ID' AND node_name='$TARGET_NODE';"
+                            
+                            TOGGLE_INFO=$(db_exec "SELECT enable_google, enable_trust FROM nodes WHERE chat_id='$CHAT_ID' AND node_name='$TARGET_NODE' LIMIT 1;")
+                            ST_GOOGLE=$(echo "$TOGGLE_INFO" | cut -d'|' -f1)
+                            ST_TRUST=$(echo "$TOGGLE_INFO" | cut -d'|' -f2)
+                            [ "$ST_GOOGLE" == "true" ] && BTN_G="🔴 停用 Google 纠偏" && ACT_G="false" || { BTN_G="🟢 启用 Google 纠偏"; ACT_G="true"; }
+                            [ "$ST_TRUST" == "true" ] && BTN_T="🔴 停用信用净化" && ACT_T="false" || { BTN_T="🟢 启用信用净化"; ACT_T="true"; }
+                            
+                            BTNS="[[{\"text\":\"$BTN_G\",\"callback_data\":\"toggle:google:$TARGET_NODE:$ACT_G\"}], [{\"text\":\"$BTN_T\",\"callback_data\":\"toggle:trust:$TARGET_NODE:$ACT_T\"}], [{\"text\":\"✏️ 修改节点备注\",\"callback_data\":\"rename:$TARGET_NODE\"}], [{\"text\":\"⬅️ 返回节点面板\",\"callback_data\":\"manage:$TARGET_NODE\"}]]"
+                            TARGET_ALIAS=$(db_exec "SELECT IFNULL(node_alias, node_name) FROM nodes WHERE chat_id='$CHAT_ID' AND node_name='$TARGET_NODE' LIMIT 1;")
+                            
+                            edit_ui "$CHAT_ID" "$MSG_ID" "⚙️ **高级控制** | \`$TARGET_ALIAS\`\n✅ 成功：模块 [$MOD_NAME] 状态已切换为 $TARGET_STATE！" "$BTNS"
+                        else
+                            send_msg "$CHAT_ID" "❌ 指令下发失败，节点可能离线或未更新至 v3.5.3。"
+                        fi
+                    fi
                     ;;
 
                 del:*)
