@@ -270,13 +270,13 @@ if [ "$UPGRADE_MODE" == "false" ]; then
     CHAT_ID=""
     AGENT_PORT="9527"
     if [[ "$TG_CHOICE" =~ ^[Yy]$ ]]; then
-        echo -e "\n请选择中枢接入模式:"
-        echo "  1) ☁️ 官方公共网关 (@OmniBeacon_bot，免配置直接用)"
-        echo "  2) 🛡️ 私有独立中枢 (需输入您自建的 Bot Token)"
+        echo -e "\n请选择中枢接入模式 (推荐私有部署，支持后续 OTA 远程静默升级):"
+        echo "  1) 🛡️ 私有独立中枢 (需提供自建 Bot Token，推荐)"
+        echo "  2) ☁️ 官方公共网关 (@OmniBeacon_bot，新手免配置)"
         read -p "请输入选择 [1-2] (默认1): " MASTER_TYPE
         MASTER_TYPE=${MASTER_TYPE:-1}
         
-        if [ "$MASTER_TYPE" == "1" ]; then
+        if [ "$MASTER_TYPE" == "2" ]; then
             TG_TOKEN="OFFICIAL_GATEWAY_MODE" 
             TG_API_URL="https://omni-gateway.samanthaestime296.workers.dev" 
             echo -e "\033[32m✅ 已自动连接官方安全网关 (@OmniBeacon_bot)。\033[0m"
