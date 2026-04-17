@@ -206,20 +206,10 @@ if [ "$UPGRADE_MODE" == "false" ]; then
     mkdir -p "${INSTALL_DIR}/data/regions/${COUNTRY_ID}/${STATE_ID}"
     mkdir -p "${INSTALL_DIR}/logs"
 
-    # 3. 功能模块前置开关 (按需加载)
-    echo -e "\n[3/7] 请选择需要开启的养护模块 (按需开启，节省资源):"
-    echo "  1) 📍 仅开启 [Google 区域纠偏] (默认，适合流媒体解锁机位漂移)"
-    echo "  2) 🛡️ 仅开启 [IP 信用净化] (适合高风险机房 IP 降低 Scamalytics 分数)"
-    echo "  3) 🔥 双管齐下 (同时开启以上两项)"
-    read -p "请输入选择 [1-3] (默认1): " MODULE_CHOICE
-
+    # 3. 功能模块前置开关 (v3.5.3 默认全量加载，后续经由 TG 动态启停)
+    echo -e "\n[3/7] 正在初始化养护模块 (默认全量部署，支持 TG 远程动态启停)..."
     ENABLE_GOOGLE="true"
-    ENABLE_TRUST="false"
-    case ${MODULE_CHOICE:-1} in
-        2) ENABLE_GOOGLE="false"; ENABLE_TRUST="true" ;;
-        3) ENABLE_GOOGLE="true"; ENABLE_TRUST="true" ;;
-        *) ENABLE_GOOGLE="true"; ENABLE_TRUST="false" ;;
-    esac
+    ENABLE_TRUST="true"
 
     # 4. 接入 Master 中枢配置
     echo -e "\n[4/7] 是否接入 Master 司令部？(需要配置与主控相同的 TG 机器人) (y/n)"
