@@ -21,7 +21,7 @@
 **—— 💎 骨干基建特征 ——**
 - 🏭 **自动化指纹兵工厂**：依托 GitHub Actions CI/CD 流水线，每月 1 日无人值守锻造 4000+ 带绝对物理分区的真实终端设备数据。
 - 🔒 **叹息之墙 (Zero-Trust HMAC)**：底层通讯引入 时间戳 + HMAC-SHA256 军用级动态签名。指令有效期仅 60 秒（阅后即焚），未授权请求直接触发系统级 403 物理熔断，彻底免疫中间人抓包与重放攻击。
-- ☁️ **云端中枢 (Public Master)**：官方公共机器人 @OmniBeacon_bot，新手免自建，一键接入极速入伍！同时支持硬核极客私有化 SQLite 分布式部署。
+- ☁️ **云端中枢 (Public Master)**：官方公共机器人 [@OmniBeacon_bot](https://t.me/OmniBeacon_bot) ，新手免自建，一键接入极速入伍！同时支持硬核极客私有化 SQLite 分布式部署。
 - 👁️‍🗨️ **玻璃房透明遥测 (Glasshouse)**：基于 Cloudflare Workers 的全透明计数中枢，绝对零隐私收集，仅作原子累加，底层网关源码全开源。
 
 ## 📂 项目架构 (Monorepo)
