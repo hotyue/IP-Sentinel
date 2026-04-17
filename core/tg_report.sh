@@ -89,8 +89,8 @@ case "$REGION_CODE" in
     *) FLAG="🌐" ;;
 esac
 
-# 3. 截取过去 24 小时的日志
-LOG_CONTENT=$(find "$LOG_FILE" -mtime -1 -exec cat {} \; 2>/dev/null)
+# 3. 截取过去 24 小时的日志 (每天48次轮询，保留最新 1000 行足以覆盖单日战报)
+LOG_CONTENT=$(tail -n 1000 "$LOG_FILE" 2>/dev/null)
 
 if [ -z "$LOG_CONTENT" ]; then
     read -r -d '' MSG <<EOT
