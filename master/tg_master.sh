@@ -204,9 +204,9 @@ while true; do
                     else
                         send_msg "$CHAT_ID" "📢 **司令部指令下达：正在召唤所有哨兵回传简报...**"
                         echo "$NODE_DATA" | while IFS='|' read -r NNAME AIP APORT; do
-                            # 🛡️ [v3.0.4] 动态签名防重放批量下发
                             TARGET_URL=$(generate_signed_url "$AIP" "$APORT" "/trigger_report")
                             curl -s -m 5 "$TARGET_URL" > /dev/null &
+                            sleep 0.2  # [新增] 流量削峰：每秒最多并发下发 5 个，保护 Master 网络栈
                         done
                     fi
                     ;;
@@ -219,9 +219,9 @@ while true; do
                     else
                         send_msg "$CHAT_ID" "📢 **司令部指令下达：正在唤醒所有哨兵执行系统维护...**"
                         echo "$NODE_DATA" | while IFS='|' read -r NNAME AIP APORT; do
-                            # 🛡️ [v3.0.4] 动态签名防重放批量下发 (维护模块)
                             TARGET_URL=$(generate_signed_url "$AIP" "$APORT" "/trigger_run")
                             curl -s -m 5 "$TARGET_URL" > /dev/null &
+                            sleep 0.2  # [新增] 流量削峰：防止瞬间 fork 导致句柄耗尽
                         done
                     fi
                     ;;
