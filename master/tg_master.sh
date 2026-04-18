@@ -199,16 +199,22 @@ while true; do
                     REMOTE_VER=$(curl -s -m 2 "${REPO_RAW_URL}/version.txt" | grep "^MASTER_VERSION=" | cut -d'=' -f2 | tr -d '[:space:]')
                     VER_INFO="当前版本: \`v${MASTER_VERSION}\`"
                     
+                    BTN_MASTER_OTA=""
                     if [ -n "$REMOTE_VER" ] && [ "$REMOTE_VER" != "$MASTER_VERSION" ]; then
-                        VER_INFO="${VER_INFO}\n✨ **发现新版本**: \`v${REMOTE_VER}\` (请尽快更新主控)"
+                        VER_INFO="${VER_INFO}\n✨ **发现新版本**: \`v${REMOTE_VER}\` (可执行中枢热重载)"
+                        
+                        # 仅当非官方网关 且 开启了中枢 OTA 权限时，才渲染升级按钮
+                        if [ "$IS_OFFICIAL_GATEWAY" != "true" ] && [ "${ENABLE_MASTER_OTA:-false}" == "true" ]; then
+                            BTN_MASTER_OTA="[{\"text\":\"🆙 升级司令部至 v${REMOTE_VER}\",\"callback_data\":\"master_ota_confirm\"}],"
+                        fi
                     fi
 
                     NODE_COUNT=$(db_exec "SELECT COUNT(*) FROM nodes WHERE chat_id='$CHAT_ID';")
                     [ -z "$NODE_COUNT" ] && NODE_COUNT=0
 
-                    # L0 扁平化重构：最高频操作独占一行
+                    # L0 扁平化重构：将司令部升级按钮动态置于最顶层
                     if [ "$IS_OFFICIAL_GATEWAY" != "true" ]; then
-                        BTNS="[[{\"text\":\"🌍 进入全球战区雷达 (管理节点)\",\"callback_data\":\"list_nodes\"}], [{\"text\":\"🚀 全军总攻\",\"callback_data\":\"all_run\"}, {\"text\":\"📊 全军简报\",\"callback_data\":\"all_reports\"}], [{\"text\":\"☢️ 全舰队 OTA 热重载\",\"callback_data\":\"all_ota_confirm\"}]]"
+                        BTNS="[${BTN_MASTER_OTA}[{\"text\":\"🌍 进入全球战区雷达 (管理节点)\",\"callback_data\":\"list_nodes\"}], [{\"text\":\"🚀 全军总攻\",\"callback_data\":\"all_run\"}, {\"text\":\"📊 全军简报\",\"callback_data\":\"all_reports\"}], [{\"text\":\"☢️ 全舰队 OTA 热重载\",\"callback_data\":\"all_ota_confirm\"}]]"
                     else
                         BTNS="[[{\"text\":\"🌍 进入全球战区雷达 (管理节点)\",\"callback_data\":\"list_nodes\"}], [{\"text\":\"🚀 全军总攻\",\"callback_data\":\"all_run\"}, {\"text\":\"📊 全军简报\",\"callback_data\":\"all_reports\"}]]"
                     fi
@@ -234,6 +240,36 @@ while true; do
                             sleep 0.3  # 严格流量削峰
                         done
                     fi
+                    ;;
+
+                "master_ota_confirm")
+                    CONFIRM_BTNS="[[{\"text\":\"🚨 确认重构司令部\",\"callback_data\":\"master_ota_execute\"}], [{\"text\":\"取消操作\",\"callback_data\":\"/start\"}]]"
+                    WARNING_MSG="☢️ **【最高指令：中枢金蝉脱壳】**\n\n此操作将拉取最新源码并强行覆盖司令部核心进程。\n\n⚠️ **风险提示**：\n升级期间司令部将短暂失联（约3-5秒）。完成后会自动发送捷报。\n\n**是否确定执行司令部自我升级？**"
+                    if [ -n "$MSG_ID" ]; then
+                        edit_ui "$CHAT_ID" "$MSG_ID" "$WARNING_MSG" "$CONFIRM_BTNS"
+                    else
+                        send_ui "$CHAT_ID" "$WARNING_MSG" "$CONFIRM_BTNS"
+                    fi
+                    ;;
+
+                "master_ota_execute")
+                    if [ -n "$MSG_ID" ]; then
+                        edit_msg "$CHAT_ID" "$MSG_ID" "⏳ 正在下载重构图纸，司令部即将进入静默重启..."
+                    else
+                        send_msg "$CHAT_ID" "⏳ 正在下载重构图纸，司令部即将进入静默重启..."
+                    fi
+
+                    # 下载最新的 master install 脚本作为幽灵进程
+                    curl -sL "${REPO_RAW_URL}/master/install_master.sh" -o "/tmp/install_master.sh"
+                    chmod +x "/tmp/install_master.sh"
+                    
+                    # 抛出幽灵进程进行脱壳升级，传递静默变量与回执 ID
+                    export SILENT_MASTER_OTA="true"
+                    export OTA_CHAT_ID="$CHAT_ID"
+                    nohup bash /tmp/install_master.sh >/dev/null 2>&1 & disown
+                    
+                    # 当前旧进程休眠并等待被幽灵进程处决
+                    sleep 10
                     ;;
 
                 "all_reports")

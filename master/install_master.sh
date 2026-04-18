@@ -25,55 +25,74 @@ echo "========================================================"
 echo "      🧠 欢迎使用 IP-Sentinel Master (控制中枢) v${TARGET_VERSION}"
 echo "========================================================"
 
-# [新增] 交互式操作菜单：支持选择部署或调用卸载程序
-echo -e "\n请选择操作:"
-echo "  1) 🚀 部署 Master 控制中枢"
-echo "  2) 🗑️ 一键卸载 Master 中枢"
-read -p "请输入选择 [1-2] (默认1): " ACTION_CHOICE
-
-# [v3.5.2 修复] 防止用户直接回车导致变量为空，从而漏过下方的平滑升级判定被误删档
-ACTION_CHOICE=${ACTION_CHOICE:-1}
-
-if [ "$ACTION_CHOICE" == "2" ]; then
-    echo -e "\n⏳ 正在拉取卸载程序..."
-    # [新增逻辑] 使用上面定义的 REPO_RAW_URL 动态拉取卸载脚本，执行后自动销毁临时文件
-    curl -sL "${REPO_RAW_URL}/master/uninstall_master.sh" -o "/tmp/uninstall_master.sh"
-    chmod +x "/tmp/uninstall_master.sh"
-    bash "/tmp/uninstall_master.sh"
-    rm -f "/tmp/uninstall_master.sh"
-    exit 0
-fi
-
-# ================== [v3.2.2 新增: 平滑升级模式嗅探] ==================
-UPGRADE_MODE="false"
-KEEP_DB="true"
-
-if [ "$ACTION_CHOICE" == "1" ] && [ -f "${MASTER_DIR}/master.conf" ]; then
-    echo -e "\n\033[33m💡 司令部雷达提示：检测到本机已部署过 Master 中枢。\033[0m"
-    read -p "👉 是否按原配置直接进行平滑升级？(y/n, 默认y): " UPGRADE_CHOICE
-    if [[ -z "$UPGRADE_CHOICE" || "$UPGRADE_CHOICE" =~ ^[Yy]$ ]]; then
-        UPGRADE_MODE="true"
-        read -p "👉 是否保留历史节点数据库 (SQLite)？(y/n, 默认y): " DB_CHOICE
-        if [[ "$DB_CHOICE" =~ ^[Nn]$ ]]; then
-            KEEP_DB="false"
-        fi
-        
-        # 汲取原配置进入内存
+# ==========================================================
+# [v3.6.1 核心] 拦截司令部静默 OTA 升级模式 (强行接管执行流)
+# ==========================================================
+if [ "$SILENT_MASTER_OTA" == "true" ]; then
+    echo -e "\n⏳ [OTA] 中枢重构指令已确认，正在剥离控制台交互..."
+    ACTION_CHOICE=1
+    UPGRADE_MODE="true"
+    KEEP_DB="true"
+    
+    # 汲取原配置进入内存
+    if [ -f "${MASTER_DIR}/master.conf" ]; then
         source "${MASTER_DIR}/master.conf"
         
-        # [v3.4.0 核心] 升级后立即同步/补录版本号至配置文件
+        # 同步新版本号至配置文件
         if grep -q "^MASTER_VERSION=" "${MASTER_DIR}/master.conf"; then
             sed -i "s/^MASTER_VERSION=.*/MASTER_VERSION=\"$TARGET_VERSION\"/" "${MASTER_DIR}/master.conf"
         else
             echo "MASTER_VERSION=\"$TARGET_VERSION\"" >> "${MASTER_DIR}/master.conf"
         fi
-        
-        echo -e "\033[32m✅ 已激活 [平滑升级模式]，版本已锚定为 v${TARGET_VERSION}...\033[0m"
-    else
-        echo -e "\033[33m🔄 您选择了重新配置，旧的中枢数据将被彻底抹除。\033[0m"
+    fi
+    echo -e "\033[32m✅ 已激活 [中枢静默重构模式]，即将无损覆写内核...\033[0m"
+else
+    # [新增] 交互式操作菜单：支持选择部署或调用卸载程序
+    echo -e "\n请选择操作:"
+    echo "  1) 🚀 部署 Master 控制中枢"
+    echo "  2) 🗑️ 一键卸载 Master 中枢"
+    read -p "请输入选择 [1-2] (默认1): " ACTION_CHOICE
+
+    # [v3.5.2 修复] 防止用户直接回车导致变量为空，从而漏过下方的平滑升级判定被误删档
+    ACTION_CHOICE=${ACTION_CHOICE:-1}
+
+    if [ "$ACTION_CHOICE" == "2" ]; then
+        echo -e "\n⏳ 正在拉取卸载程序..."
+        curl -sL "${REPO_RAW_URL}/master/uninstall_master.sh" -o "/tmp/uninstall_master.sh"
+        chmod +x "/tmp/uninstall_master.sh"
+        bash "/tmp/uninstall_master.sh"
+        rm -f "/tmp/uninstall_master.sh"
+        exit 0
+    fi
+
+    # ================== [v3.2.2 新增: 平滑升级模式嗅探] ==================
+    UPGRADE_MODE="false"
+    KEEP_DB="true"
+
+    if [ "$ACTION_CHOICE" == "1" ] && [ -f "${MASTER_DIR}/master.conf" ]; then
+        echo -e "\n\033[33m💡 司令部雷达提示：检测到本机已部署过 Master 中枢。\033[0m"
+        read -p "👉 是否按原配置直接进行平滑升级？(y/n, 默认y): " UPGRADE_CHOICE
+        if [[ -z "$UPGRADE_CHOICE" || "$UPGRADE_CHOICE" =~ ^[Yy]$ ]]; then
+            UPGRADE_MODE="true"
+            read -p "👉 是否保留历史节点数据库 (SQLite)？(y/n, 默认y): " DB_CHOICE
+            if [[ "$DB_CHOICE" =~ ^[Nn]$ ]]; then
+                KEEP_DB="false"
+            fi
+            
+            source "${MASTER_DIR}/master.conf"
+            
+            if grep -q "^MASTER_VERSION=" "${MASTER_DIR}/master.conf"; then
+                sed -i "s/^MASTER_VERSION=.*/MASTER_VERSION=\"$TARGET_VERSION\"/" "${MASTER_DIR}/master.conf"
+            else
+                echo "MASTER_VERSION=\"$TARGET_VERSION\"" >> "${MASTER_DIR}/master.conf"
+            fi
+            
+            echo -e "\033[32m✅ 已激活 [平滑升级模式]，版本已锚定为 v${TARGET_VERSION}...\033[0m"
+        else
+            echo -e "\033[33m🔄 您选择了重新配置，旧的中枢数据将被彻底抹除。\033[0m"
+        fi
     fi
 fi
-# ====================================================================
 
 # ================== [v3.2.2 优化: 安装前环境纯净度清理与数据保护] ==================
 echo -e "\n⏳ 正在清理旧版 Master 守护进程..."
@@ -169,9 +188,22 @@ if [ "$UPGRADE_MODE" == "false" ]; then
     GATEWAY_TYPE=${GATEWAY_TYPE:-1}
     
     IS_OFFICIAL_GATEWAY="false"
+    ENABLE_MASTER_OTA="false"
     if [ "$GATEWAY_TYPE" == "2" ]; then
         IS_OFFICIAL_GATEWAY="true"
-        echo -e "\033[33m⚠️ 已开启官方公共网关模式，全局 OTA 按钮将被屏蔽。\033[0m"
+        echo -e "\033[33m⚠️ 已开启官方公共网关模式，全舰队与司令部的 OTA 将被强制屏蔽。\033[0m"
+    else
+        # [v3.6.1] 私有模式开放中枢 OTA 授权向导
+        echo -e "\n[2.1/4] 司令部自我进化授权"
+        echo -e "💡 开启后，您可以在 TG 菜单一键将中枢核心系统热更新至最新版本。"
+        read -p "是否允许司令部接收 OTA 重构指令？(y/n, 默认y): " M_OTA_CHOICE
+        if [[ "$M_OTA_CHOICE" =~ ^[Nn]$ ]]; then
+            ENABLE_MASTER_OTA="false"
+            echo -e "🛡️ \033[33m已关闭司令部 OTA 权限，中枢内核未来仅支持 SSH 升级。\033[0m"
+        else
+            ENABLE_MASTER_OTA="true"
+            echo -e "✅ \033[32m已开启司令部 OTA 权限，金蝉脱壳引信已挂载。\033[0m"
+        fi
     fi
 
     cat > "${MASTER_DIR}/master.conf" << EOF
@@ -182,13 +214,18 @@ DB_FILE="$DB_FILE"
 MASTER_DIR="$MASTER_DIR"
 # [v3.6.0 核心] 官方网关 UI 熔断标识
 IS_OFFICIAL_GATEWAY="$IS_OFFICIAL_GATEWAY"
+# [v3.6.1 新增] 司令部自身 OTA 授权标识
+ENABLE_MASTER_OTA="$ENABLE_MASTER_OTA"
 EOF
 fi
 
-# [v3.6.0 热修复] 老司令部平滑升级时，自动补齐该字段并默认为 false
+# [v3.6.1 热修复] 老司令部平滑升级时，自动补齐缺失字段
 if [ "$UPGRADE_MODE" == "true" ]; then
     if ! grep -q "^IS_OFFICIAL_GATEWAY=" "${MASTER_DIR}/master.conf"; then
         echo "IS_OFFICIAL_GATEWAY=\"false\"" >> "${MASTER_DIR}/master.conf"
+    fi
+    if ! grep -q "^ENABLE_MASTER_OTA=" "${MASTER_DIR}/master.conf"; then
+        echo "ENABLE_MASTER_OTA=\"false\"" >> "${MASTER_DIR}/master.conf"
     fi
 fi
 # 🛑 拦截块结束
@@ -232,11 +269,22 @@ rm -f /tmp/cron_master
 # 立刻启动 (追加 disown 彻底脱离终端管控，实现绝对静默)
 pgrep -f tg_master.sh >/dev/null || { nohup bash "${MASTER_DIR}/tg_master.sh" >/dev/null 2>&1 & disown 2>/dev/null; }
 
-# ================== [v3.2.2 优化: 战报文案分流] ==================
+# ================== [v3.2.2 优化 & v3.6.1 OTA捷报: 战报文案分流] ==================
 echo "========================================================"
 if [ "$UPGRADE_MODE" == "true" ]; then
     echo "🎉 Master 控制中枢平滑热更新完成！"
     echo "🤖 新版中枢引擎已接管数据库，继续等待边缘节点汇报。"
+    
+    # [v3.6.1 核心] 静默 OTA 完成后，由幽灵进程主动向指挥官发送捷报
+    if [ "$SILENT_MASTER_OTA" == "true" ] && [ -n "$OTA_CHAT_ID" ] && [ -n "$TG_TOKEN" ]; then
+        echo -e "\n📡 正在向指挥官发送司令部重构捷报..."
+        curl -s -X POST "https://api.telegram.org/bot${TG_TOKEN}/sendMessage" \
+            -d "chat_id=${OTA_CHAT_ID}" \
+            -d "parse_mode=Markdown" \
+            -d "text=✨ *司令部中枢热重载完成！*
+🚀 当前内核已跃升至：\`v${TARGET_VERSION}\`
+🤖 新版金蝉脱壳引擎已接管阵地，全舰队指控链路恢复正常。" > /dev/null
+    fi
 else
     echo "🎉 Master 控制中枢部署完成！"
     echo "🤖 机器人现已开始全局接客，等待边缘节点注册。"
