@@ -8,7 +8,7 @@
 # 你的 GitHub 仓库 Raw 数据直链前缀
 # REPO_RAW_URL="https://raw.githubusercontent.com/hotyue/IP-Sentinel/main"
 # 临时改为开发地址用于测试
-# REPO_RAW_URL="https://raw.githubusercontent.com/hotyue/IP-Sentinel/dev-v3.6.1"
+REPO_RAW_URL="https://raw.githubusercontent.com/hotyue/IP-Sentinel/dev-v3.6.1"
 
 # [核心: 动态提取 Master 专属版本锚点 (KV 解析法)]
 # 通过 grep 定位 MASTER_VERSION 行，再通过 cut 提取等号右侧的值
