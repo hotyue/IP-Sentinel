@@ -1,0 +1,35 @@
+{
+  "region_name": "Australia - Sydney",
+  "google_module": {
+    "base_lat": -33.8697,
+    "base_lon": 151.2085,
+    "lang_params": "hl=en-AU&gl=AU",
+    "valid_url_suffix": "com.au"
+  },
+  "trust_module": {
+    "white_urls": [
+      "https://en.wikipedia.org/wiki/Special:Random",
+      "https://www.smh.com.au/",
+      "https://www.dailytelegraph.com.au/",
+      "https://www.service.nsw.gov.au/",
+      "https://transportnsw.info/",
+      "https://www.bom.gov.au/",
+      "https://www.woolworths.com.au/",
+      "https://www.coles.com.au/",
+      "https://www.bunnings.com.au/",
+      "https://www.abc.net.au/",
+      "https://www.news.com.au/",
+      "https://www.nine.com.au/",
+      "https://my.gov.au/",
+      "https://www.ato.gov.au/",
+      "https://www.commbank.com.au/",
+      "https://www.westpac.com.au/",
+      "https://www.realestate.com.au/",
+      "https://www.domain.com.au/",
+      "https://www.seek.com.au/",
+      "https://www.nrl.com/",
+      "https://premier.ticketek.com.au/",
+      "https://www.amazon.com.au/"
+    ]
+  }
+}

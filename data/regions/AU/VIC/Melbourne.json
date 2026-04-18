@@ -1,0 +1,35 @@
+{
+  "region_name": "Australia - Melbourne",
+  "google_module": {
+    "base_lat": -37.8106,
+    "base_lon": 144.9624,
+    "lang_params": "hl=en-AU&gl=AU",
+    "valid_url_suffix": "com.au"
+  },
+  "trust_module": {
+    "white_urls": [
+      "https://en.wikipedia.org/wiki/Special:Random",
+      "https://www.theage.com.au/",
+      "https://www.heraldsun.com.au/",
+      "https://www.vic.gov.au/",
+      "https://www.ptv.vic.gov.au/",
+      "https://www.vicroads.vic.gov.au/",
+      "https://www.bom.gov.au/",
+      "https://www.bunnings.com.au/",
+      "https://www.kmart.com.au/",
+      "https://www.abc.net.au/",
+      "https://www.news.com.au/",
+      "https://my.gov.au/",
+      "https://www.ato.gov.au/",
+      "https://www.nab.com.au/",
+      "https://www.anz.com.au/",
+      "https://www.woolworths.com.au/",
+      "https://www.coles.com.au/",
+      "https://www.realestate.com.au/",
+      "https://www.seek.com.au/",
+      "https://www.afl.com.au/",
+      "https://www.ticketmaster.com.au/",
+      "https://www.amazon.com.au/"
+    ]
+  }
+}
