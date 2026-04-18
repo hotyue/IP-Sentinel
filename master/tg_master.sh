@@ -10,9 +10,9 @@ CONF="/opt/ip_sentinel_master/master.conf"
 source "$CONF"
 
 # [核心: 运行态版本继承与云通信地址]
-REPO_RAW_URL="https://raw.githubusercontent.com/hotyue/IP-Sentinel/main"
+# REPO_RAW_URL="https://raw.githubusercontent.com/hotyue/IP-Sentinel/main"
 # 临时改为开发地址用于测试
-# REPO_RAW_URL="https://raw.githubusercontent.com/hotyue/IP-Sentinel/dev-v3.6.0"
+REPO_RAW_URL="https://raw.githubusercontent.com/hotyue/IP-Sentinel/dev-v3.6.1"
 # MASTER_VERSION 已经在上方的 source "$CONF" 中被载入
 # 如果本地极度陈旧没有该变量，才给定一个基础兜底值，避免变量为空导致崩溃
 MASTER_VERSION=${MASTER_VERSION:-"3.5.0"}
@@ -203,13 +203,17 @@ while true; do
                         VER_INFO="${VER_INFO}\n✨ **发现新版本**: \`v${REMOTE_VER}\` (请尽快更新主控)"
                     fi
 
-                    # [v3.6.0 核心] 官方网关 UI 全局熔断
+                    NODE_COUNT=$(db_exec "SELECT COUNT(*) FROM nodes WHERE chat_id='$CHAT_ID';")
+                    [ -z "$NODE_COUNT" ] && NODE_COUNT=0
+
+                    # L0 扁平化重构：最高频操作独占一行
                     if [ "$IS_OFFICIAL_GATEWAY" != "true" ]; then
-                        BTNS="[[{\"text\":\"🖥️ 我的节点列表\",\"callback_data\":\"list_nodes\"}], [{\"text\":\"🚀 全节点日报汇总\",\"callback_data\":\"all_reports\"}], [{\"text\":\"🛠️ 全节点一键维护\",\"callback_data\":\"all_run\"}], [{\"text\":\"⚠️ 全舰队 OTA 升级\",\"callback_data\":\"all_ota_confirm\"}]]"
+                        BTNS="[[{\"text\":\"🌍 进入全球战区雷达 (管理节点)\",\"callback_data\":\"list_nodes\"}], [{\"text\":\"🚀 全军总攻\",\"callback_data\":\"all_run\"}, {\"text\":\"📊 全军简报\",\"callback_data\":\"all_reports\"}], [{\"text\":\"☢️ 全舰队 OTA 热重载\",\"callback_data\":\"all_ota_confirm\"}]]"
                     else
-                        BTNS="[[{\"text\":\"🖥️ 我的节点列表\",\"callback_data\":\"list_nodes\"}], [{\"text\":\"🚀 全节点日报汇总\",\"callback_data\":\"all_reports\"}], [{\"text\":\"🛠️ 全节点一键维护\",\"callback_data\":\"all_run\"}]]"
+                        BTNS="[[{\"text\":\"🌍 进入全球战区雷达 (管理节点)\",\"callback_data\":\"list_nodes\"}], [{\"text\":\"🚀 全军总攻\",\"callback_data\":\"all_run\"}, {\"text\":\"📊 全军简报\",\"callback_data\":\"all_reports\"}]]"
                     fi
-                    send_ui "$CHAT_ID" "🛡️ **IP-Sentinel 司令部**\n${VER_INFO}\n\n欢迎回来，长官。请下达指令：" "$BTNS"
+                    TEXT_MSG="🛡️ **IP-Sentinel 司令部**\n${VER_INFO}\n\n📊 舰队状态: 共有 \`${NODE_COUNT}\` 台哨兵在线\n欢迎回来，长官。请下达战略指令："
+                    send_ui "$CHAT_ID" "$TEXT_MSG" "$BTNS"
                     ;;
                     
                 "all_ota_confirm")
@@ -279,8 +283,9 @@ while true; do
                             esac
                             BTNS="$BTNS[{\"text\":\"$FLAG $REGION_NAME ($NODE_COUNT 台)\",\"callback_data\":\"region:$REGION_NAME\"}],"
                         done <<< "$REGION_DATA"
-                        BTNS="${BTNS%,}]"
-                        send_ui "$CHAT_ID" "🌍 **全视界战略雷达**\n请选择要检阅的战区：" "$BTNS"
+                        # L1 追加返回中枢逃生舱
+                        BTNS="$BTNS[{\"text\":\"🏠 回到司令部\",\"callback_data\":\"/start\"}]]"
+                        send_ui "$CHAT_ID" "🌍 **全视界战略雷达**\n已为您聚合当前舰队的部署大区，请选择要检阅的战区：" "$BTNS"
                     fi
                     ;;
 
@@ -313,9 +318,9 @@ while true; do
                             ROW_STR="${ROW_STR%,}]"
                             BTNS="$BTNS$ROW_STR,"
                         fi
-                        # 添加返回上级大区雷达的按钮
-                        BTNS="$BTNS[{\"text\":\"⬅️ 返回全球战区分布\",\"callback_data\":\"list_nodes\"}]]"
-                        send_ui "$CHAT_ID" "📍 **[$TARGET_REGION] 战区哨兵矩阵**\n请下达控制指令：" "$BTNS"
+                        # L2 追加双重逃生舱
+                        BTNS="$BTNS[{\"text\":\"⬅️ 返回战区地图\",\"callback_data\":\"list_nodes\"}, {\"text\":\"🏠 回到司令部\",\"callback_data\":\"/start\"}]]"
+                        send_ui "$CHAT_ID" "📍 **[$TARGET_REGION] 战区哨兵矩阵**\n请锁定要执行战术动作的具体目标：" "$BTNS"
                     fi
                     ;;
 
@@ -324,44 +329,43 @@ while true; do
                     TARGET_ALIAS=$(db_exec "SELECT IFNULL(node_alias, node_name) FROM nodes WHERE chat_id='$CHAT_ID' AND node_name='$TARGET_NODE' LIMIT 1;")
                     [ -z "$TARGET_ALIAS" ] && TARGET_ALIAS="$TARGET_NODE"
                     
-                    # [v3.5.3] 将改名收纳至 L5 高级面板，替换为“高级控制功能”
-                    BTNS="[[{\"text\":\"📍 Google 纠偏\",\"callback_data\":\"google:$TARGET_NODE\"}, {\"text\":\"🛡️ 信用净化\",\"callback_data\":\"trust:$TARGET_NODE\"}], [{\"text\":\"📜 实时日志\",\"callback_data\":\"log:$TARGET_NODE\"}, {\"text\":\"📊 统计战报\",\"callback_data\":\"report:$TARGET_NODE\"}], [{\"text\":\"⚙️ 高级控制功能\",\"callback_data\":\"adv:$TARGET_NODE\"}, {\"text\":\"🗑️ 剔除失联节点\",\"callback_data\":\"del:$TARGET_NODE\"}], [{\"text\":\"⬅️ 返回大区目录\",\"callback_data\":\"list_nodes\"}]]"
-                    
-                    if [ -n "$MSG_ID" ]; then
-                        edit_ui "$CHAT_ID" "$MSG_ID" "⚙️ **目标锁定**: \`$TARGET_ALIAS\`\n*(身份标识: $TARGET_NODE)*\n请选择战术动作：" "$BTNS"
-                    else
-                        send_ui "$CHAT_ID" "⚙️ **目标锁定**: \`$TARGET_ALIAS\`\n*(身份标识: $TARGET_NODE)*\n请选择战术动作：" "$BTNS"
-                    fi
-                    ;;
-
-                adv:*)
-                    # [L5 高级控制面板渲染]
-                    TARGET_NODE=$(echo "${TEXT#*:}" | tr -cd 'a-zA-Z0-9_.-')
-                    TARGET_ALIAS=$(db_exec "SELECT IFNULL(node_alias, node_name) FROM nodes WHERE chat_id='$CHAT_ID' AND node_name='$TARGET_NODE' LIMIT 1;")
-                    [ -z "$TARGET_ALIAS" ] && TARGET_ALIAS="$TARGET_NODE"
-                    
-                    # 抓取当前节点的开关状态 (追加 enable_ota)
-                    TOGGLE_INFO=$(db_exec "SELECT enable_google, enable_trust, enable_ota FROM nodes WHERE chat_id='$CHAT_ID' AND node_name='$TARGET_NODE' LIMIT 1;")
+                    # 抓取节点全景元数据
+                    TOGGLE_INFO=$(db_exec "SELECT enable_google, enable_trust, enable_ota, agent_ip, IFNULL(last_seen, '未知') FROM nodes WHERE chat_id='$CHAT_ID' AND node_name='$TARGET_NODE' LIMIT 1;")
                     ST_GOOGLE=$(echo "$TOGGLE_INFO" | cut -d'|' -f1)
                     ST_TRUST=$(echo "$TOGGLE_INFO" | cut -d'|' -f2)
                     ST_OTA=$(echo "$TOGGLE_INFO" | cut -d'|' -f3)
+                    A_IP=$(echo "$TOGGLE_INFO" | cut -d'|' -f4)
+                    LAST_SEEN=$(echo "$TOGGLE_INFO" | cut -d'|' -f5)
                     
-                    # 动态渲染状态机红绿灯 UI
-                    [ "$ST_GOOGLE" == "true" ] && BTN_G="🔴 停用 Google 纠偏" && ACT_G="false" || { BTN_G="🟢 启用 Google 纠偏"; ACT_G="true"; }
-                    [ "$ST_TRUST" == "true" ] && BTN_T="🔴 停用信用净化" && ACT_T="false" || { BTN_T="🟢 启用信用净化"; ACT_T="true"; }
+                    # 动态渲染状态文字
+                    [ "$ST_GOOGLE" == "true" ] && BTN_G="🟢 Google巡逻: 已开" && ACT_G="false" || { BTN_G="🔴 Google巡逻: 已停"; ACT_G="true"; }
+                    [ "$ST_TRUST" == "true" ] && BTN_T="🟢 信用净化: 已开" && ACT_T="false" || { BTN_T="🔴 信用净化: 已停"; ACT_T="true"; }
 
-                    # [v3.6.0 核心] 官方网关单节点 UI 熔断 + 本地开关双重校验
+                    # 模块一：即时战术动作
+                    BTN_ACTION="[{\"text\":\"📍 触发 Google 纠偏\",\"callback_data\":\"google:$TARGET_NODE\"}, {\"text\":\"🛡️ 触发信用净化\",\"callback_data\":\"trust:$TARGET_NODE\"}], [{\"text\":\"📜 提取终端实时日志\",\"callback_data\":\"log:$TARGET_NODE\"}, {\"text\":\"📊 生成单机战报\",\"callback_data\":\"report:$TARGET_NODE\"}]"
+                    
+                    # 模块二：养护状态启停
+                    BTN_TOGGLE="[{\"text\":\"$BTN_G\",\"callback_data\":\"toggle:google:$TARGET_NODE:$ACT_G\"}, {\"text\":\"$BTN_T\",\"callback_data\":\"toggle:trust:$TARGET_NODE:$ACT_T\"}]"
+
+                    # 模块三：深度配置管理 (结合 UI 熔断)
                     if [ "$IS_OFFICIAL_GATEWAY" != "true" ] && [ "$ST_OTA" == "true" ]; then
-                        BTN_OTA="{\"text\":\"🆙 远程升级客户端\",\"callback_data\":\"ota_confirm:$TARGET_NODE\"}"
-                        BTNS="[[{\"text\":\"$BTN_G\",\"callback_data\":\"toggle:google:$TARGET_NODE:$ACT_G\"}], [{\"text\":\"$BTN_T\",\"callback_data\":\"toggle:trust:$TARGET_NODE:$ACT_T\"}], [{\"text\":\"✏️ 修改节点备注\",\"callback_data\":\"rename:$TARGET_NODE\"}, $BTN_OTA], [{\"text\":\"⬅️ 返回节点面板\",\"callback_data\":\"manage:$TARGET_NODE\"}]]"
+                        BTN_CONFIG="[{\"text\":\"✏️ 更改终端展示代号\",\"callback_data\":\"rename:$TARGET_NODE\"}, {\"text\":\"🆙 OTA 静默升级\",\"callback_data\":\"ota_confirm:$TARGET_NODE\"}]"
                     else
-                        BTNS="[[{\"text\":\"$BTN_G\",\"callback_data\":\"toggle:google:$TARGET_NODE:$ACT_G\"}], [{\"text\":\"$BTN_T\",\"callback_data\":\"toggle:trust:$TARGET_NODE:$ACT_T\"}], [{\"text\":\"✏️ 修改节点备注\",\"callback_data\":\"rename:$TARGET_NODE\"}], [{\"text\":\"⬅️ 返回节点面板\",\"callback_data\":\"manage:$TARGET_NODE\"}]]"
+                        BTN_CONFIG="[{\"text\":\"✏️ 更改终端展示代号\",\"callback_data\":\"rename:$TARGET_NODE\"}]"
                     fi
                     
+                    # 模块四：危险区与逃生舱
+                    BTN_DANGER="[{\"text\":\"🗑️ 从中枢销毁该档案\",\"callback_data\":\"del:$TARGET_NODE\"}, {\"text\":\"⬅️ 返回战区列表\",\"callback_data\":\"list_nodes\"}]"
+
+                    # 组合终极矩阵
+                    BTNS="[$BTN_ACTION, $BTN_TOGGLE, $BTN_CONFIG, $BTN_DANGER]"
+                    
+                    TEXT_MSG="⚙️ **目标锁定**: \`$TARGET_ALIAS\`\n(底层标识: \`$TARGET_NODE\`)\n🌐 IP 坐标: \`$A_IP\`\n🕒 最后通讯: \`$LAST_SEEN\`\n\n请下达精确控制指令："
+
                     if [ -n "$MSG_ID" ]; then
-                        edit_ui "$CHAT_ID" "$MSG_ID" "⚙️ **高级控制** | \`$TARGET_ALIAS\`\n请下达控制指令：" "$BTNS"
+                        edit_ui "$CHAT_ID" "$MSG_ID" "$TEXT_MSG" "$BTNS"
                     else
-                        send_ui "$CHAT_ID" "⚙️ **高级控制** | \`$TARGET_ALIAS\`\n请下达控制指令：" "$BTNS"
+                        send_ui "$CHAT_ID" "$TEXT_MSG" "$BTNS"
                     fi
                     ;;
 
@@ -389,10 +393,32 @@ while true; do
                             [ "$ST_GOOGLE" == "true" ] && BTN_G="🔴 停用 Google 纠偏" && ACT_G="false" || { BTN_G="🟢 启用 Google 纠偏"; ACT_G="true"; }
                             [ "$ST_TRUST" == "true" ] && BTN_T="🔴 停用信用净化" && ACT_T="false" || { BTN_T="🟢 启用信用净化"; ACT_T="true"; }
                             
-                            BTNS="[[{\"text\":\"$BTN_G\",\"callback_data\":\"toggle:google:$TARGET_NODE:$ACT_G\"}], [{\"text\":\"$BTN_T\",\"callback_data\":\"toggle:trust:$TARGET_NODE:$ACT_T\"}], [{\"text\":\"✏️ 修改节点备注\",\"callback_data\":\"rename:$TARGET_NODE\"}], [{\"text\":\"⬅️ 返回节点面板\",\"callback_data\":\"manage:$TARGET_NODE\"}]]"
+                            # 切换后直接复用扁平化 L3 面板的重绘逻辑
+                            TOGGLE_INFO=$(db_exec "SELECT enable_google, enable_trust, enable_ota, agent_ip, IFNULL(last_seen, '未知') FROM nodes WHERE chat_id='$CHAT_ID' AND node_name='$TARGET_NODE' LIMIT 1;")
+                            ST_GOOGLE=$(echo "$TOGGLE_INFO" | cut -d'|' -f1)
+                            ST_TRUST=$(echo "$TOGGLE_INFO" | cut -d'|' -f2)
+                            ST_OTA=$(echo "$TOGGLE_INFO" | cut -d'|' -f3)
+                            A_IP=$(echo "$TOGGLE_INFO" | cut -d'|' -f4)
+                            LAST_SEEN=$(echo "$TOGGLE_INFO" | cut -d'|' -f5)
+
+                            [ "$ST_GOOGLE" == "true" ] && BTN_G="🟢 Google巡逻: 已开" && ACT_G="false" || { BTN_G="🔴 Google巡逻: 已停"; ACT_G="true"; }
+                            [ "$ST_TRUST" == "true" ] && BTN_T="🟢 信用净化: 已开" && ACT_T="false" || { BTN_T="🔴 信用净化: 已停"; ACT_T="true"; }
+
+                            BTN_ACTION="[{\"text\":\"📍 触发 Google 纠偏\",\"callback_data\":\"google:$TARGET_NODE\"}, {\"text\":\"🛡️ 触发信用净化\",\"callback_data\":\"trust:$TARGET_NODE\"}], [{\"text\":\"📜 提取终端实时日志\",\"callback_data\":\"log:$TARGET_NODE\"}, {\"text\":\"📊 生成单机战报\",\"callback_data\":\"report:$TARGET_NODE\"}]"
+                            BTN_TOGGLE="[{\"text\":\"$BTN_G\",\"callback_data\":\"toggle:google:$TARGET_NODE:$ACT_G\"}, {\"text\":\"$BTN_T\",\"callback_data\":\"toggle:trust:$TARGET_NODE:$ACT_T\"}]"
+                            
+                            if [ "$IS_OFFICIAL_GATEWAY" != "true" ] && [ "$ST_OTA" == "true" ]; then
+                                BTN_CONFIG="[{\"text\":\"✏️ 更改终端展示代号\",\"callback_data\":\"rename:$TARGET_NODE\"}, {\"text\":\"🆙 OTA 静默升级\",\"callback_data\":\"ota_confirm:$TARGET_NODE\"}]"
+                            else
+                                BTN_CONFIG="[{\"text\":\"✏️ 更改终端展示代号\",\"callback_data\":\"rename:$TARGET_NODE\"}]"
+                            fi
+                            BTN_DANGER="[{\"text\":\"🗑️ 从中枢销毁该档案\",\"callback_data\":\"del:$TARGET_NODE\"}, {\"text\":\"⬅️ 返回战区列表\",\"callback_data\":\"list_nodes\"}]"
+
+                            BTNS="[$BTN_ACTION, $BTN_TOGGLE, $BTN_CONFIG, $BTN_DANGER]"
                             TARGET_ALIAS=$(db_exec "SELECT IFNULL(node_alias, node_name) FROM nodes WHERE chat_id='$CHAT_ID' AND node_name='$TARGET_NODE' LIMIT 1;")
                             
-                            edit_ui "$CHAT_ID" "$MSG_ID" "⚙️ **高级控制** | \`$TARGET_ALIAS\`\n✅ 成功：模块 [$MOD_NAME] 状态已切换为 $TARGET_STATE！" "$BTNS"
+                            TEXT_MSG="⚙️ **目标锁定**: \`$TARGET_ALIAS\`\n(底层标识: \`$TARGET_NODE\`)\n🌐 IP 坐标: \`$A_IP\`\n🕒 最后通讯: \`$LAST_SEEN\`\n\n✅ **执行成功**: 模块 [$MOD_NAME] 状态已切换为 $TARGET_STATE！"
+                            edit_ui "$CHAT_ID" "$MSG_ID" "$TEXT_MSG" "$BTNS"
                         else
                             send_msg "$CHAT_ID" "❌ 指令下发失败，节点可能离线或未更新至 v3.5.3。"
                         fi
@@ -473,7 +499,8 @@ while true; do
 
                 ota_confirm:*)
                     TARGET_NODE=$(echo "${TEXT#*:}" | tr -cd 'a-zA-Z0-9_.-')
-                    CONFIRM_BTNS="[[{\"text\":\"🚨 确认执行远程升级\",\"callback_data\":\"ota_execute:$TARGET_NODE\"}], [{\"text\":\"取消\",\"callback_data\":\"adv:$TARGET_NODE\"}]]"
+                    # 将取消动作引导回 manage，因为 adv 已经被删除了
+                    CONFIRM_BTNS="[[{\"text\":\"🚨 确认执行远程升级\",\"callback_data\":\"ota_execute:$TARGET_NODE\"}], [{\"text\":\"取消\",\"callback_data\":\"manage:$TARGET_NODE\"}]]"
                     send_ui "$CHAT_ID" "☢️ **操作确认**：即将向 \`$TARGET_NODE\` 下发 OTA 热更新指令。\n节点更新完成后会自动发送包含新版本号的注册回执，确定执行？" "$CONFIRM_BTNS"
                     ;;
 
