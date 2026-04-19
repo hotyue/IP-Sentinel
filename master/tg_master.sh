@@ -22,25 +22,25 @@ OFFSET_FILE="${MASTER_DIR}/.tg_offset"
 
 # --- 工具函数 ---
 send_ui() {
-    curl -s -X POST "https://api.telegram.org/bot${TG_TOKEN}/sendMessage" \
+    curl -s --connect-timeout 5 -m 10 -X POST "https://api.telegram.org/bot${TG_TOKEN}/sendMessage" \
         -H "Content-Type: application/json" \
         -d "{\"chat_id\":\"$1\",\"text\":\"$2\",\"parse_mode\":\"Markdown\",\"reply_markup\":{\"inline_keyboard\":$3}}" > /dev/null
 }
 
 send_msg() {
-    curl -s -X POST "https://api.telegram.org/bot${TG_TOKEN}/sendMessage" \
+    curl -s --connect-timeout 5 -m 10 -X POST "https://api.telegram.org/bot${TG_TOKEN}/sendMessage" \
         -d "chat_id=$1" -d "text=$2" -d "parse_mode=Markdown" > /dev/null
 }
 
 # ================== [v3.0.1 新增: 消息原位刷新函数] ==================
 edit_msg() {
-    curl -s -X POST "https://api.telegram.org/bot${TG_TOKEN}/editMessageText" \
+    curl -s --connect-timeout 5 -m 10 -X POST "https://api.telegram.org/bot${TG_TOKEN}/editMessageText" \
         -d "chat_id=$1" -d "message_id=$2" -d "text=$3" -d "parse_mode=Markdown" > /dev/null
 }
 
 # [v3.5.3 新增: 支持内联键盘的原位 UI 重绘函数]
 edit_ui() {
-    curl -s -X POST "https://api.telegram.org/bot${TG_TOKEN}/editMessageText" \
+    curl -s --connect-timeout 5 -m 10 -X POST "https://api.telegram.org/bot${TG_TOKEN}/editMessageText" \
         -H "Content-Type: application/json" \
         -d "{\"chat_id\":\"$1\",\"message_id\":\"$2\",\"text\":\"$3\",\"parse_mode\":\"Markdown\",\"reply_markup\":{\"inline_keyboard\":$4}}" > /dev/null
 }
@@ -81,7 +81,7 @@ db_exec "ALTER TABLE nodes ADD COLUMN enable_ota TEXT DEFAULT 'false';" 2>/dev/n
 # --- 核心轮询循环 ---
 while true; do
     OFFSET=$(cat $OFFSET_FILE)
-    UPDATES=$(curl -s "https://api.telegram.org/bot${TG_TOKEN}/getUpdates?offset=${OFFSET}&timeout=30")
+    UPDATES=$(curl -s --connect-timeout 5 -m 35 "https://api.telegram.org/bot${TG_TOKEN}/getUpdates?offset=${OFFSET}&timeout=30")
     
     COUNT=$(echo "$UPDATES" | jq -r '.result | length' 2>/dev/null)
     
@@ -116,7 +116,7 @@ while true; do
             
             # 告诉 TG 官方“指令已收到”，立刻消除按钮上的加载圈圈
             if [ -n "$CB_ID" ]; then
-                curl -s -X POST "https://api.telegram.org/bot${TG_TOKEN}/answerCallbackQuery" -d "callback_query_id=${CB_ID}" > /dev/null
+                curl -s --connect-timeout 5 -m 10 -X POST "https://api.telegram.org/bot${TG_TOKEN}/answerCallbackQuery" -d "callback_query_id=${CB_ID}" > /dev/null
             fi
 
             # ==========================================
