@@ -480,7 +480,7 @@ while true; do
                             FLAG="🌐"
                             case "$REGION_NAME" in
                                 "US") FLAG="🇺🇸" ;; "JP") FLAG="🇯🇵" ;; "HK") FLAG="🇭🇰" ;;
-                                "SG") FLAG="🇸🇬" ;; "UK"|"GB") FLAG="🇬🇧" ;; "DE") FLAG="🇩🇪" ;; "FR") FLAG="🇫🇷" ;;
+                                "SG") FLAG="🇸🇬" ;; "UK"|"GB") FLAG="🇬🇧" ;; "DE") FLAG="🇩🇪" ;; "FR") FLAG="🇫🇷" ;; "AU") FLAG="🇦🇺" ;;
                             esac
                             BTNS="$BTNS[{\"text\":\"$FLAG $REGION_NAME ($NODE_COUNT 台)\",\"callback_data\":\"region:$REGION_NAME\"}],"
                         done <<< "$REGION_DATA"

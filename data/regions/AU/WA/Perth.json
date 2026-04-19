@@ -1,0 +1,35 @@
+{
+  "region_name": "Australia - Perth",
+  "google_module": {
+    "base_lat": -31.9545,
+    "base_lon": 115.8582,
+    "lang_params": "hl=en-AU&gl=AU",
+    "valid_url_suffix": "com.au"
+  },
+  "trust_module": {
+    "white_urls": [
+      "https://en.wikipedia.org/wiki/Special:Random",
+      "https://thewest.com.au/",
+      "https://www.perthnow.com.au/",
+      "https://www.wa.gov.au/",
+      "https://www.transperth.wa.gov.au/",
+      "https://www.bom.gov.au/",
+      "https://www.bunnings.com.au/",
+      "https://www.coles.com.au/",
+      "https://www.woolworths.com.au/",
+      "https://www.kmart.com.au/",
+      "https://www.abc.net.au/",
+      "https://www.news.com.au/",
+      "https://my.gov.au/",
+      "https://www.ato.gov.au/",
+      "https://www.commbank.com.au/",
+      "https://www.bankwest.com.au/",
+      "https://reiwa.com.au/",
+      "https://www.realestate.com.au/",
+      "https://www.seek.com.au/",
+      "https://www.afl.com.au/",
+      "https://premier.ticketek.com.au/",
+      "https://www.amazon.com.au/"
+    ]
+  }
+}

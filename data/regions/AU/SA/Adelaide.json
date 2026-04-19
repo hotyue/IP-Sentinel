@@ -1,0 +1,35 @@
+{
+  "region_name": "Australia - Adelaide",
+  "google_module": {
+    "base_lat": -34.9227,
+    "base_lon": 138.6016,
+    "lang_params": "hl=en-AU&gl=AU",
+    "valid_url_suffix": "com.au"
+  },
+  "trust_module": {
+    "white_urls": [
+      "https://en.wikipedia.org/wiki/Special:Random",
+      "https://www.adelaidenow.com.au/",
+      "https://indaily.com.au/",
+      "https://www.sa.gov.au/",
+      "https://www.adelaidemetro.com.au/",
+      "https://www.sapowernetworks.com.au/",
+      "https://www.bom.gov.au/",
+      "https://www.bunnings.com.au/",
+      "https://www.coles.com.au/",
+      "https://www.woolworths.com.au/",
+      "https://www.abc.net.au/",
+      "https://www.news.com.au/",
+      "https://my.gov.au/",
+      "https://www.ato.gov.au/",
+      "https://www.commbank.com.au/",
+      "https://www.bendigobank.com.au/",
+      "https://www.realestate.com.au/",
+      "https://www.domain.com.au/",
+      "https://www.seek.com.au/",
+      "https://www.afl.com.au/",
+      "https://premier.ticketek.com.au/",
+      "https://www.amazon.com.au/"
+    ]
+  }
+}

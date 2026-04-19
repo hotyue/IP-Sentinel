@@ -1,6 +1,6 @@
 {
   "version": "3.5.2",
-  "updated_at": "2026-04-16",
+  "updated_at": "2026-04-19",
   "continents": [
     {
       "id": "ASIA",
@@ -173,6 +173,54 @@
               "cities": [
                 { "id": "Toronto", "name": "Toronto (多伦多)" },
                 { "id": "Montreal", "name": "Montreal (蒙特利尔)" }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "OCEANIA",
+      "name": "大洋洲战区 (Oceania)",
+      "countries": [
+        {
+          "id": "AU",
+          "name": "Australia (澳大利亚)",
+          "keyword_file": "kw_AU.txt",
+          "states": [
+            {
+              "id": "NSW",
+              "name": "New South Wales (新南威尔士州)",
+              "cities": [
+                { "id": "Sydney", "name": "Sydney (悉尼)" }
+              ]
+            },
+            {
+              "id": "VIC",
+              "name": "Victoria (维多利亚州)",
+              "cities": [
+                { "id": "Melbourne", "name": "Melbourne (墨尔本)" }
+              ]
+            },
+            {
+              "id": "QLD",
+              "name": "Queensland (昆士兰州)",
+              "cities": [
+                { "id": "Brisbane", "name": "Brisbane (布里斯班)" }
+              ]
+            },
+            {
+              "id": "WA",
+              "name": "Western Australia (西澳大利亚州)",
+              "cities": [
+                { "id": "Perth", "name": "Perth (珀斯)" }
+              ]
+            },
+            {
+              "id": "SA",
+              "name": "South Australia (南澳大利亚州)",
+              "cities": [
+                { "id": "Adelaide", "name": "Adelaide (阿德莱德)" }
               ]
             }
           ]

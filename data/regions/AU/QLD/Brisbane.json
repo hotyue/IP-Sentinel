@@ -1,0 +1,36 @@
+{
+  "region_name": "Australia - Brisbane",
+  "google_module": {
+    "base_lat": -27.4697,
+    "base_lon": 153.0252,
+    "lang_params": "hl=en-AU&gl=AU",
+    "valid_url_suffix": "com.au"
+  },
+  "trust_module": {
+    "white_urls": [
+      "https://en.wikipedia.org/wiki/Special:Random",
+      "https://www.couriermail.com.au/",
+      "https://www.brisbanetimes.com.au/",
+      "https://www.qld.gov.au/",
+      "https://translink.com.au/",
+      "https://www.health.qld.gov.au/",
+      "https://www.bom.gov.au/",
+      "https://www.bunnings.com.au/",
+      "https://www.woolworths.com.au/",
+      "https://www.coles.com.au/",
+      "https://www.abc.net.au/",
+      "https://www.news.com.au/",
+      "https://my.gov.au/",
+      "https://www.ato.gov.au/",
+      "https://www.commbank.com.au/",
+      "https://www.suncorp.com.au/",
+      "https://www.boq.com.au/",
+      "https://www.realestate.com.au/",
+      "https://www.domain.com.au/",
+      "https://www.seek.com.au/",
+      "https://www.nrl.com/",
+      "https://premier.ticketek.com.au/",
+      "https://www.amazon.com.au/"
+    ]
+  }
+}
