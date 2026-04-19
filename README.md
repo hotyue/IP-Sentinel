@@ -114,12 +114,17 @@ bash <(curl -sL https://raw.githubusercontent.com/hotyue/IP-Sentinel/legacy/core
 如果你在使用过程中遇到任何疑难杂症，或者想围观大佬们的养护战报，欢迎加入我们的基地：
 - Telegram 频道: [@IP_Sentinel_Matrix](https://t.me/IP_Sentinel_Matrix)
 
-## 🤝 参与贡献
+## 🤝 参与贡献 (Contributors)
 
-如果你想为项目增加新的节点区域（例如德国、英国、新加坡等），或者提供更丰富的本土化搜索词库，非常欢迎提交 Pull Request！
+**🌟 感谢以下所有为 IP-Sentinel 添砖加瓦的指挥官们！** 你们的每一次 PR 都在让这艘战舰的全球雷达覆盖得更广。
 
-## **v3.0 全球节点贡献规范：**
+<a href="https://github.com/hotyue/IP-Sentinel/graphs/contributors">
+  <img src="https://contrib.rocks/image?repo=hotyue/IP-Sentinel" alt="Contributors" />
+</a>
 
+如果你想为项目增加新的节点区域（例如德国、英国、大洋洲等），或者提供更丰富的本土化搜索词库，非常欢迎提交 Pull Request！
+
+**💡 全球节点贡献规范：**
 1. 在 `data/regions/国家代码/省州代码/` 目录下新增对应城市的配置 `.json`。
 2. 在 `data/keywords/` 目录下新增或完善配套国家的词库 `kw_XX.txt`。
 3. **最重要的一步：** 在 `data/map.json` 中登记你的国家、省州与城市信息。安装脚本将自动读取地图，在全球雷达中点亮你的节点！
