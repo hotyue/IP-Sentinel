@@ -1,0 +1,22 @@
+{
+  "region_name": "South Korea - Seoul",
+  "google_module": {
+    "base_lat": 37.5665,
+    "base_lon": 126.9780,
+    "lang_params": "hl=ko&gl=KR",
+    "valid_url_suffix": "co.kr"
+  },
+  "trust_module": {
+    "white_urls": [
+      "https://ko.wikipedia.org/wiki/특수:임의문서",
+      "https://www.naver.com/",
+      "https://www.daum.net/",
+      "https://namu.wiki/",
+      "https://www.tistory.com/",
+      "https://www.coupang.com/",
+      "https://www.chosun.com/",
+      "https://www.yna.co.kr/",
+      "https://www.kakaocorp.com/"
+    ]
+  }
+}

@@ -23,6 +23,14 @@
           ]
         },
         {
+          "id": "KR",
+          "name": "South Korea (韩国)",
+          "keyword_file": "kw_KR.txt",
+          "states": [
+            { "id": "Default", "name": "Default State", "cities": [ { "id": "Seoul", "name": "Seoul (首尔)" } ] }
+          ]
+        },
+        {
           "id": "HK",
           "name": "Hong Kong (香港)",
           "keyword_file": "kw_HK.txt",
