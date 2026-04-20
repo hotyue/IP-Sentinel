@@ -269,14 +269,49 @@ echo -e "\n[4/4] 部署 TG 调度守护进程..."
 curl -sL "${REPO_RAW_URL}/master/tg_master.sh" -o "${MASTER_DIR}/tg_master.sh"
 chmod +x "${MASTER_DIR}/tg_master.sh"
 
-# 写入看门狗 Cron (容错版)
-crontab -l 2>/dev/null | grep -v "tg_master.sh" > /tmp/cron_master || true
-echo "* * * * * pgrep -f tg_master.sh >/dev/null || nohup bash ${MASTER_DIR}/tg_master.sh >/dev/null 2>&1 &" >> /tmp/cron_master
-[ -f /tmp/cron_master ] && crontab /tmp/cron_master 2>/dev/null
-rm -f /tmp/cron_master
+if command -v systemctl >/dev/null 2>&1; then
+    echo "💡 检测到 Systemd 环境，正在部署 Systemd 服务单元..."
 
-# 立刻启动 (追加 disown 彻底脱离终端管控，实现绝对静默)
-pgrep -f tg_master.sh >/dev/null || { nohup bash "${MASTER_DIR}/tg_master.sh" >/dev/null 2>&1 & disown 2>/dev/null; }
+    # 部署 Master 战队主控调度服务
+    cat > /etc/systemd/system/ip-sentinel-master.service << EOF
+[Unit]
+Description=IP-Sentinel Master Command Center Service
+After=network.target
+
+[Service]
+Environment="PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+SyslogIdentifier=ip-sentinel
+Type=simple
+ExecStart=/bin/bash ${MASTER_DIR}/tg_master.sh
+Restart=always
+RestartSec=5
+User=root
+WorkingDirectory=${MASTER_DIR}
+CPUSchedulingPolicy=idle
+IOSchedulingClass=idle
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+    # 重载服务配置并启动服务
+    systemctl daemon-reload
+    # 立刻启用 Master 战队主控调度服务
+    systemctl enable --now ip-sentinel-master.service
+    # 强制重载服务，兼容 OTA
+    systemctl restart ip-sentinel-master.service
+else
+    echo "💡 未检测到 Systemd (可能是 Alpine Linux)，回退到 Cron 调度模式..."
+
+    # 写入看门狗 Cron (容错版)
+    crontab -l 2>/dev/null | grep -v "tg_master.sh" > /tmp/cron_master || true
+    echo "* * * * * pgrep -f tg_master.sh >/dev/null || nohup bash ${MASTER_DIR}/tg_master.sh >/dev/null 2>&1 &" >> /tmp/cron_master
+    [ -f /tmp/cron_master ] && crontab /tmp/cron_master 2>/dev/null
+    rm -f /tmp/cron_master
+
+    # 立刻启动 (追加 disown 彻底脱离终端管控，实现绝对静默)
+    pgrep -f tg_master.sh >/dev/null || { nohup bash "${MASTER_DIR}/tg_master.sh" >/dev/null 2>&1 & disown 2>/dev/null; }
+fi
 
 # ================== [v3.2.2 优化 & v3.6.1 OTA捷报: 战报文案分流] ==================
 echo "========================================================"

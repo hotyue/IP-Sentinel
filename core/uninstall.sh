@@ -27,8 +27,30 @@ if [ -f "$CONFIG_FILE" ]; then
 fi
 echo "========================================================"
 
-# 1. 停止运行中的守护进程与主控模块 (涵盖所有历史版本进程)
-echo "[1/3] 正在终止后台守护进程与所有养护任务..."
+# 1. 停止并删除 Systemd 服务
+echo "[1/4] 正在停止并删除 Systemd 服务..."
+if command -v systemctl >/dev/null 2>&1; then
+    echo "[1/4] 💡 检测到 Systemd 环境，正在删除 Systemd 服务单元..."
+    systemctl disable --now ip-sentinel-runner.service ip-sentinel-runner.timer \
+        ip-sentinel-updater.service ip-sentinel-updater.timer \
+        ip-sentinel-report.service ip-sentinel-report.timer \
+        ip-sentinel-agent-daemon.service ip-sentinel-agent-daemon.timer >/dev/null 2>&1
+    rm -f /etc/systemd/system/ip-sentinel-runner.service
+    rm -f /etc/systemd/system/ip-sentinel-runner.timer
+    rm -f /etc/systemd/system/ip-sentinel-updater.service
+    rm -f /etc/systemd/system/ip-sentinel-updater.timer
+    rm -f /etc/systemd/system/ip-sentinel-report.service
+    rm -f /etc/systemd/system/ip-sentinel-report.timer
+    rm -f /etc/systemd/system/ip-sentinel-agent-daemon.service
+    rm -f /etc/systemd/system/ip-sentinel-agent-daemon.timer
+    systemctl daemon-reload
+    systemctl reset-failed
+else
+    echo "[1/4] 💡 未检测到 Systemd，跳过此步骤..."
+fi
+
+# 2. 停止运行中的守护进程与主控模块 (涵盖所有历史版本进程)
+echo "[2/4] 正在终止后台守护进程与所有养护任务..."
 
 # 使用 pkill 替代传统的 pgrep | xargs，指令更短、容错率更高
 pkill -9 -f "tg_daemon.sh" >/dev/null 2>&1
@@ -42,16 +64,16 @@ pkill -9 -f "tg_report.sh" >/dev/null 2>&1
 pkill -9 -f "mod_google.sh" >/dev/null 2>&1
 pkill -9 -f "mod_trust.sh" >/dev/null 2>&1
 
-# 2. 清除系统定时任务 (Cron)
-echo "[2/3] 正在清理系统定时任务 (Cron)..."
+# 3. 清除系统定时任务 (Cron)
+echo "[3/4] 正在清理系统定时任务 (Cron)..."
 if crontab -l >/dev/null 2>&1; then
     crontab -l | grep -v "ip_sentinel" > /tmp/cron_backup
     crontab /tmp/cron_backup
     rm -f /tmp/cron_backup
 fi
 
-# 3. 删除所有文件、日志与临时缓存
-echo "[3/3] 正在抹除核心程序、配置文件与系统痕迹..."
+# 4. 删除所有文件、日志与临时缓存
+echo "[4/4] 正在抹除核心程序、配置文件与系统痕迹..."
 if [ -d "$INSTALL_DIR" ]; then
     rm -rf "$INSTALL_DIR"
 fi
