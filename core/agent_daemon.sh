@@ -407,8 +407,8 @@ except Exception as e:
 # ====================================================================================
 EOF
 
-# --- [重点升级 3: 真正的静默后台启动] ---
-echo "🚀 [Agent] 正在后台启动 Webhook 监听服务 (端口: $AGENT_PORT)..."
-nohup python3 "${INSTALL_DIR}/core/webhook.py" "$AGENT_PORT" > /dev/null 2>&1 &
-disown 2>/dev/null || true
-echo "✅ [Agent] 守护进程启动完毕，可安全关闭终端。"
+# --- [重点升级 3: 移交系统级守护进程接管] ---
+echo "🚀 [Agent] 正在启动 Webhook 监听服务 (端口: $AGENT_PORT)..."
+# 去掉 nohup 和 &，使用 exec 让 Python 进程直接替换当前 Bash 进程，前台阻塞运行
+# 这样 Systemd 才能真正捕捉到 Python 进程的生命周期，永不误杀！
+exec python3 "${INSTALL_DIR}/core/webhook.py" "$AGENT_PORT"
