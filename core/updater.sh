@@ -25,18 +25,12 @@ log() {
     # [v3.4.0 核心] 提取当前配置中的版本锚点
     local local_ver="${AGENT_VERSION:-未知}"
     
-    # 保证日志目录存在
     mkdir -p "${INSTALL_DIR}/logs"
-
-    # 日志格式注入 [版本号] 追踪标识
     local core_msg=$(printf "[v%-5s] [%-5s] [%-7s] [%s] %s" "$local_ver" "$2" "$1" "$REGION_CODE" "$3")
     echo "[$(date '+%Y-%m-%d %H:%M:%S')] $core_msg" >> "$LOG_FILE"
-
-    # 强制推送到 Systemd Journal (如果系统支持)
     if command -v logger >/dev/null 2>&1; then
         logger -t ip-sentinel "$core_msg"
     else
-        # 降级输出到 stdout，让 Systemd 捕获
         echo "$core_msg"
     fi
 }

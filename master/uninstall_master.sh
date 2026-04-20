@@ -1,16 +1,13 @@
 #!/bin/bash
 
 # ==========================================================
-# 脚本名称: uninstall_master.sh (IP-Sentinel Master 一键卸载脚本 - 动态锚点版)
+# 脚本名称: uninstall_master.sh (IP-Sentinel Master 一键卸载脚本)
 # 核心功能: 终止调度进程、清理看门狗定时任务、抹除数据库与配置
 # ==========================================================
 
-# ==========================================================
-# 🛑 核心权限防线: 检查是否以 root 权限运行
-# ==========================================================
 if [ "$EUID" -ne 0 ]; then
   echo -e "\033[31m❌ 权限被拒绝: 卸载 IP-Sentinel 需要最高系统权限。\033[0m"
-  echo -e "💡 请使用 \033[36msudo bash $0\033[0m 或切换到 root 用户 (su root) 后重新执行指令。"
+  echo -e "💡 请使用 \033[36msudo bash -c \"\$(curl -fsSL ...)\"\033[0m 执行。"
   exit 1
 fi
 
@@ -20,7 +17,6 @@ CONF_FILE="${MASTER_DIR}/master.conf"
 echo "========================================================"
 echo "      🗑️ 准备卸载 IP-Sentinel Master (控制中枢)"
 
-# [v3.4.0 优化] 卸载前读取并播报中枢版本号
 if [ -f "$CONF_FILE" ]; then
     MASTER_VER=$(grep "^MASTER_VERSION=" "$CONF_FILE" | cut -d'"' -f2)
     [ -n "$MASTER_VER" ] && echo "        📍 目标版本: v${MASTER_VER}"
@@ -34,32 +30,22 @@ if [[ ! "$CONFIRM_DEL" =~ ^[Yy]$ ]]; then
     exit 0
 fi
 
-# 1. 停止并删除 Systemd 服务
-echo "[1/4] 正在停止并删除 Systemd 服务..."
+echo "[1/3] 正在终止后台中枢 Systemd 调度进程..."
 if command -v systemctl >/dev/null 2>&1; then
-    echo "[1/4] 💡 检测到 Systemd 环境，正在删除 Systemd 服务单元..."
-
     systemctl disable --now ip-sentinel-master.service >/dev/null 2>&1
     rm -f /etc/systemd/system/ip-sentinel-master.service
     systemctl daemon-reload
     systemctl reset-failed
-else
-    echo "[1/4] 💡 未检测到 Systemd，跳过此步骤..."
 fi
 
-# 2. 停止运行中的 Master 守护进程
-echo "[2/4] 正在终止后台中枢调度进程..."
-# [优化] 使用 pkill 替代 pgrep | xargs，指令更短、容错率更高
 pkill -9 -f "tg_master.sh" >/dev/null 2>&1 || true
 
-# 3. 清除看门狗定时任务 (Cron)
-echo "[3/4] 正在清理系统定时任务 (Cron)..."
+echo "[2/3] 正在清理看门狗定时任务 (Cron)..."
 crontab -l 2>/dev/null | grep -v "tg_master.sh" > /tmp/cron_backup
 crontab /tmp/cron_backup
 rm -f /tmp/cron_backup
 
-# 4. 删除所有文件、配置与数据库
-echo "[4/4] 正在抹除核心程序、配置文件与 SQLite 数据库..."
+echo "[3/3] 正在抹除核心程序、配置文件与 SQLite 数据库..."
 if [ -d "$MASTER_DIR" ]; then
     rm -rf "$MASTER_DIR"
 fi

@@ -54,12 +54,12 @@
 
 - **部署 Master (中枢大脑)**：找一台 VPS 作为司令部（仅需部署一台），执行：
 ```bash
-curl -sL https://raw.githubusercontent.com/hotyue/IP-Sentinel/main/master/install_master.sh | sudo bash
+sudo bash -c "$(curl -fsSL https://raw.githubusercontent.com/hotyue/IP-Sentinel/main/master/install_master.sh)"
 ```
 - 部署 Agent (边缘哨兵)：在需要养护的机器上执行 Agent 脚本，安装时选择私有独立中枢，并分别输入您自建机器人的 [Token](https://blog.iot-architect.com/engineering-practice/create-private-telegram-bot-via-botfather) 以及您的个人 [Chat ID](https://blog.iot-architect.com/engineering-practice/get-telegram-personal-id-via-userinfobot) ：
 
 ```Bash
-curl -sL https://raw.githubusercontent.com/hotyue/IP-Sentinel/main/core/install.sh | sudo bash
+sudo bash -c "$(curl -fsSL https://raw.githubusercontent.com/hotyue/IP-Sentinel/main/core/install.sh)"
 ```
 - 激活节点：安装完成后，您的手机会收到一条 #REGISTER# 注册暗号，将其转发给您自己的机器人即可完成编队入库。
 
@@ -71,7 +71,7 @@ curl -sL https://raw.githubusercontent.com/hotyue/IP-Sentinel/main/core/install.
 - 部署 Agent：在目标 VPS 上执行以下指令，安装过程中选择官方公共网关，并输入您的 Chat ID：
 
 ```Bash
-curl -sL https://raw.githubusercontent.com/hotyue/IP-Sentinel/main/core/install.sh | sudo bash
+sudo bash -c "$(curl -fsSL https://raw.githubusercontent.com/hotyue/IP-Sentinel/main/core/install.sh)"
 ```
 - 激活节点：同上，将收到的暗号转发给官方机器人即可。
 
@@ -106,7 +106,7 @@ bash /opt/ip_sentinel/core/uninstall.sh
 *(注意：该分支仅作基础维护，不享受新功能迭代，请尽可能升级你的系统)*
 
 ```bash
-curl -sL https://raw.githubusercontent.com/hotyue/IP-Sentinel/legacy/core/install.sh | sudo bash
+sudo bash -c "$(curl -fsSL https://raw.githubusercontent.com/hotyue/IP-Sentinel/legacy/core/install.sh)"
 ```
 
 ## 📡 战术联络 (Community)

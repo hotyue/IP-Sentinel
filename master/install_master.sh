@@ -10,7 +10,7 @@
 # ==========================================================
 if [ "$EUID" -ne 0 ]; then
   echo -e "\033[31m❌ 权限被拒绝: 部署 IP-Sentinel 需要最高系统权限。\033[0m"
-  echo -e "💡 请使用 \033[36msudo bash $0\033[0m 或切换到 root 用户 (su root) 后重新执行指令。"
+  echo -e "💡 请使用 \033[36msudo bash -c \"\$(curl -fsSL ...)\"\033[0m 或切换到 root 执行。"
   exit 1
 fi
 
@@ -265,14 +265,11 @@ chmod 600 "$DB_FILE"
 
 # 4. 拉取核心调度代码并运行
 echo -e "\n[4/4] 部署 TG 调度守护进程..."
-# [修改] 剥离了写死的网址，改用顶部的 ${REPO_RAW_URL} 变量，确保与卸载脚本的数据源同源
 curl -sL "${REPO_RAW_URL}/master/tg_master.sh" -o "${MASTER_DIR}/tg_master.sh"
 chmod +x "${MASTER_DIR}/tg_master.sh"
 
 if command -v systemctl >/dev/null 2>&1; then
-    echo "💡 检测到 Systemd 环境，正在部署 Systemd 服务单元..."
-
-    # 部署 Master 战队主控调度服务
+    echo "💡 检测到 Systemd 环境，正在部署原生守护服务..."
     cat > /etc/systemd/system/ip-sentinel-master.service << EOF
 [Unit]
 Description=IP-Sentinel Master Command Center Service
@@ -293,23 +290,20 @@ IOSchedulingClass=idle
 [Install]
 WantedBy=multi-user.target
 EOF
-
-    # 重载服务配置并启动服务
     systemctl daemon-reload
-    # 立刻启用 Master 战队主控调度服务
     systemctl enable --now ip-sentinel-master.service
-    # 强制重载服务，兼容 OTA
     systemctl restart ip-sentinel-master.service
+    
+    # 清理遗留的 Cron
+    crontab -l 2>/dev/null | grep -v "tg_master.sh" > /tmp/cron_master || true
+    [ -f /tmp/cron_master ] && crontab /tmp/cron_master 2>/dev/null
+    rm -f /tmp/cron_master
 else
-    echo "💡 未检测到 Systemd (可能是 Alpine Linux)，回退到 Cron 调度模式..."
-
-    # 写入看门狗 Cron (容错版)
+    echo "💡 未检测到 Systemd，回退到 Cron 看门狗调度模式..."
     crontab -l 2>/dev/null | grep -v "tg_master.sh" > /tmp/cron_master || true
     echo "* * * * * pgrep -f tg_master.sh >/dev/null || nohup bash ${MASTER_DIR}/tg_master.sh >/dev/null 2>&1 &" >> /tmp/cron_master
     [ -f /tmp/cron_master ] && crontab /tmp/cron_master 2>/dev/null
     rm -f /tmp/cron_master
-
-    # 立刻启动 (追加 disown 彻底脱离终端管控，实现绝对静默)
     pgrep -f tg_master.sh >/dev/null || { nohup bash "${MASTER_DIR}/tg_master.sh" >/dev/null 2>&1 & disown 2>/dev/null; }
 fi
 

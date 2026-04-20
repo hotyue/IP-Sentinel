@@ -10,7 +10,7 @@
 # ==========================================================
 if [ "$EUID" -ne 0 ]; then
   echo -e "\033[31m❌ 权限被拒绝: 部署 IP-Sentinel 需要最高系统权限。\033[0m"
-  echo -e "💡 请使用 \033[36msudo bash $0\033[0m 或切换到 root 用户 (su root) 后重新执行指令。"
+  echo -e "💡 请使用 \033[36msudo bash -c \"\$(curl -fsSL ...)\"\033[0m 或切换到 root 执行。"
   exit 1
 fi
 
@@ -638,17 +638,19 @@ echo $(date +%s) > "${INSTALL_DIR}/core/.ua_last_update"
 # [修复竞态]: 提前写入公网 IP 缓存，彻底阻断 agent_daemon 首次启动时的抢跑推送
 echo "$SAFE_PUBLIC_IP" > "${INSTALL_DIR}/core/.last_ip"
 
-# 7. 配置系统定时任务 (高频调度与看门狗)
-echo -e "\n[7/7] 正在注入系统定时任务与看门狗进程..."
-if command -v systemctl >/dev/null 2>&1; then
-    echo "💡 检测到 Systemd 环境，正在部署 Systemd 服务单元..."
+# 7. 配置系统任务与原生守护进程
+echo -e "\n[7/7] 正在注入系统任务与守护进程..."
+crontab -l 2>/dev/null | grep -v "ip_sentinel" > /tmp/cron_backup || true
 
-    # 1. 编写 Runner 核心养护模块服务
+echo $(date +%s) > "${INSTALL_DIR}/core/.ua_last_update"
+
+if command -v systemctl >/dev/null 2>&1; then
+    echo "💡 检测到 Systemd 环境，正在部署 Systemd 调度单元..."
+    
     cat > /etc/systemd/system/ip-sentinel-runner.service << EOF
 [Unit]
 Description=IP-Sentinel Runner Service
 After=network.target
-
 [Service]
 Environment="PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
 SyslogIdentifier=ip-sentinel
@@ -659,28 +661,23 @@ CPUSchedulingPolicy=idle
 IOSchedulingClass=idle
 EOF
 
-    # 2. 编写 Runner 定时器 (每 30 分钟): 每次运行前随机休眠 0 到 180 秒
     cat > /etc/systemd/system/ip-sentinel-runner.timer << EOF
 [Unit]
 Description=Timer for IP-Sentinel Runner Service
-
 [Timer]
 OnBootSec=10
 OnUnitActiveSec=30min
 RandomizedDelaySec=180
 Persistent=true
 Unit=ip-sentinel-runner.service
-
 [Install]
 WantedBy=timers.target
 EOF
 
-    # 3. 编写 Updater 养料更新模块服务
     cat > /etc/systemd/system/ip-sentinel-updater.service << EOF
 [Unit]
 Description=IP-Sentinel Updater Service
 After=network.target
-
 [Service]
 Environment="PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
 SyslogIdentifier=ip-sentinel
@@ -691,35 +688,28 @@ CPUSchedulingPolicy=idle
 IOSchedulingClass=idle
 EOF
 
-    # 4. 编写 Updater 定时器 (每天凌晨 3 点触发)
     cat > /etc/systemd/system/ip-sentinel-updater.timer << EOF
 [Unit]
 Description=Timer for IP-Sentinel Updater Service
-
 [Timer]
 OnCalendar=*-*-* 03:00:00
 Persistent=true
 Unit=ip-sentinel-updater.service
-
 [Install]
 WantedBy=timers.target
 EOF
 
-    # 重载服务配置并启动服务
     systemctl daemon-reload
     systemctl enable --now ip-sentinel-runner.timer
     systemctl enable --now ip-sentinel-updater.timer
-    # 强制重载服务，兼容 OTA
     systemctl restart ip-sentinel-runner.timer ip-sentinel-updater.timer
 
-    # 如果配置了联控，启动 Webhook 与战报任务
     if [[ -n "$TG_TOKEN" ]] && [[ -n "$CHAT_ID" ]]; then
-        # 编写 TG 战报服务
+        echo "$SAFE_PUBLIC_IP" > "${INSTALL_DIR}/core/.last_ip"
+        
         cat > /etc/systemd/system/ip-sentinel-report.service << EOF
 [Unit]
 Description=IP-Sentinel Telegram Report Service
-After=network.target
-
 [Service]
 Environment="PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
 SyslogIdentifier=ip-sentinel
@@ -730,82 +720,55 @@ CPUSchedulingPolicy=idle
 IOSchedulingClass=idle
 EOF
 
-        # 编写 TG 战报服务定时器 (每天早上 8 点触发)
         cat > /etc/systemd/system/ip-sentinel-report.timer << EOF
 [Unit]
-Description=Timer for IP-Sentinel Telegram Report Service
-
+Description=Timer for IP-Sentinel Telegram Report
 [Timer]
 OnCalendar=*-*-* 08:00:00
 Unit=ip-sentinel-report.service
-
 [Install]
 WantedBy=timers.target
 EOF
 
-        # 编写 Agent 进程守护服务
+        # ⚠️ 已修复陷阱：改为 Type=simple，去除 Timer
         cat > /etc/systemd/system/ip-sentinel-agent-daemon.service << EOF
 [Unit]
 Description=IP-Sentinel Agent Daemon Service
 After=network.target
-
 [Service]
 Environment="PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
 SyslogIdentifier=ip-sentinel
-Type=oneshot
+Type=simple
 ExecStart=/bin/bash ${INSTALL_DIR}/core/agent_daemon.sh
-KillMode=process
+Restart=always
+RestartSec=10
 User=root
 CPUSchedulingPolicy=idle
 IOSchedulingClass=idle
-EOF
-
-        # 编写 Agent Daemon 定时器 (每 1 分钟)
-        cat > /etc/systemd/system/ip-sentinel-agent-daemon.timer << EOF
-[Unit]
-Description=Timer for IP-Sentinel Agent Daemon Service
-
-[Timer]
-OnBootSec=10
-OnUnitActiveSec=1min
-Unit=ip-sentinel-agent-daemon.service
-
 [Install]
-WantedBy=timers.target
+WantedBy=multi-user.target
 EOF
 
-        # 重载服务配置并启动服务
         systemctl daemon-reload
         systemctl enable --now ip-sentinel-report.timer
-        systemctl enable --now ip-sentinel-agent-daemon.timer
-        # 安装时立刻启动一次边缘守护进程
-        systemctl start ip-sentinel-agent-daemon.service
-        # 强制重载服务，兼容 OTA
-        systemctl restart ip-sentinel-report.timer ip-sentinel-agent-daemon.timer
+        systemctl enable --now ip-sentinel-agent-daemon.service
+        systemctl restart ip-sentinel-report.timer ip-sentinel-agent-daemon.service
     fi
+
+    [ -f /tmp/cron_backup ] && crontab /tmp/cron_backup 2>/dev/null
+    rm -f /tmp/cron_backup
 else
     echo "💡 未检测到 Systemd (可能是 Alpine Linux)，回退到 Cron 调度模式..."
-
-    crontab -l 2>/dev/null | grep -v "ip_sentinel" > /tmp/cron_backup || true
-
-    # 核心养护模块: 每 30 分钟触发一次
     echo "*/30 * * * * ${INSTALL_DIR}/core/runner.sh >/dev/null 2>&1" >> /tmp/cron_backup
-    # 养料更新模块: (v3.3.0升级) 每天凌晨 3 点触发，由中枢自动进行分频调度
     echo "0 3 * * * ${INSTALL_DIR}/core/updater.sh >/dev/null 2>&1" >> /tmp/cron_backup
 
-    # 如果配置了联控，启动 Webhook 与战报任务
     if [[ -n "$TG_TOKEN" ]] && [[ -n "$CHAT_ID" ]]; then
-        # 每天早上 8 点发送昨天的统计战报
+        echo "$SAFE_PUBLIC_IP" > "${INSTALL_DIR}/core/.last_ip"
         echo "0 8 * * * ${INSTALL_DIR}/core/tg_report.sh >/dev/null 2>&1" >> /tmp/cron_backup
-        
-        # 双保险守护进程看门狗
         echo "@reboot nohup bash ${INSTALL_DIR}/core/agent_daemon.sh >/dev/null 2>&1 &" >> /tmp/cron_backup
-        echo "* * * * * nohup bash ${INSTALL_DIR}/core/agent_daemon.sh >/dev/null 2>&1 &" >> /tmp/cron_backup
-        
-        # 安装时立刻启动一次边缘守护进程
+        echo "* * * * * pgrep -f agent_daemon.sh >/dev/null || nohup bash ${INSTALL_DIR}/core/agent_daemon.sh >/dev/null 2>&1 &" >> /tmp/cron_backup
         nohup bash "${INSTALL_DIR}/core/agent_daemon.sh" >/dev/null 2>&1 &
     fi
-
     [ -f /tmp/cron_backup ] && crontab /tmp/cron_backup 2>/dev/null
     rm -f /tmp/cron_backup
 fi
