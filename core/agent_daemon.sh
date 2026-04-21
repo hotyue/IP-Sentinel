@@ -372,15 +372,36 @@ class AgentHandler(http.server.BaseHTTPRequestHandler):
                 
                 # [修复] 逃逸 Systemd Cgroup，并引入 bash -n 语法树校验防砖机制
                 import shutil
+                import base64
                 repo_url = "https://raw.githubusercontent.com/hotyue/IP-Sentinel/v3.6.3-dev"
                 
-                # [v3.6.3 修复] 🚀 下载后先执行 if bash -n 语法校验，通过后再执行覆盖
-                ota_cmd = f"export SILENT_OTA='true'; curl -fsSL {repo_url}/core/install.sh -o /tmp/ota_agent.sh && if bash -n /tmp/ota_agent.sh; then bash /tmp/ota_agent.sh > /opt/ip_sentinel/logs/ota_upgrade.log 2>&1; else echo 'OTA Checksum Failed: Script corrupted' > /opt/ip_sentinel/logs/ota_upgrade.log; fi"
+                # 动态构建报错回执文本 (第一层 Base64 隔离换行与特殊字符)
+                err_msg = f"❌ **OTA 熔断告警**\n📍 节点: `{config_mem.get('NODE_ALIAS', '未知')}`\n⚠️ 原因: 脚本语法校验(bash -n)未通过，下载可能不完整。\n🚀 状态: 升级已取消，节点安全。"
+                err_msg_b64 = base64.b64encode(err_msg.encode('utf-8')).decode('utf-8')
                 
+                tg_url = config_mem.get('TG_API_URL', '')
+                chat_id = config_mem.get('CHAT_ID', '')
+                
+                # [v3.6.3 究极防御] 采用 Base64 将整个 OTA 执行脚本封装 (第二层隔离)
+                # 彻底免疫因为 python 变量掺杂引号而导致的 shell 注入或截断
+                ota_script = f"""
+export SILENT_OTA="true"
+curl -fsSL {repo_url}/core/install.sh -o /tmp/ota_agent.sh
+if bash -n /tmp/ota_agent.sh; then
+    bash /tmp/ota_agent.sh > /opt/ip_sentinel/logs/ota_upgrade.log 2>&1
+else
+    MSG=$(echo '{err_msg_b64}' | base64 -d)
+    curl -s -m 10 -X POST "{tg_url}" -d "chat_id={chat_id}" -d "text=$MSG" -d "parse_mode=Markdown" > /dev/null 2>&1
+    echo "OTA Checksum Failed: Script corrupted" > /opt/ip_sentinel/logs/ota_upgrade.log
+fi
+"""
+                ota_script_b64 = base64.b64encode(ota_script.encode('utf-8')).decode('utf-8')
+                
+                # 安全解包并执行
                 if shutil.which("systemd-run"):
-                    full_cmd = f"systemd-run --quiet --no-block bash -c \"{ota_cmd}\""
+                    full_cmd = f"systemd-run --quiet --no-block bash -c \"echo '{ota_script_b64}' | base64 -d | bash\""
                 else:
-                    full_cmd = f"nohup bash -c \"{ota_cmd}\" &"
+                    full_cmd = f"nohup bash -c \"echo '{ota_script_b64}' | base64 -d | bash\" >/dev/null 2>&1 &"
                     
                 subprocess.Popen(full_cmd, shell=True)
                 
