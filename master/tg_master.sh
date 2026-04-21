@@ -45,9 +45,9 @@ edit_ui() {
         -d "{\"chat_id\":\"$1\",\"message_id\":\"$2\",\"text\":\"$3\",\"parse_mode\":\"Markdown\",\"reply_markup\":{\"inline_keyboard\":$4}}" > /dev/null
 }
 
-# 数据库执行函数
+# 数据库执行函数 (v3.6.3 增强版: 注入 5000ms 锁排队超时防御)
 db_exec() {
-    sqlite3 "$DB_FILE" "$1"
+    sqlite3 "$DB_FILE" "PRAGMA busy_timeout=5000; $1"
 }
 
 # ================== [v3.0.4 核心: 动态 HMAC 签名生成器] ==================
@@ -68,6 +68,11 @@ generate_signed_url() {
     echo "https://${target_ip}:${target_port}${action_path}?t=${current_t}&sign=${signature}"
 }
 # ========================================================================
+
+# ================== [v3.6.3 核心: 激活 SQLite 高并发 WAL 引擎] ==================
+db_exec "PRAGMA journal_mode=WAL;" > /dev/null 2>&1
+db_exec "PRAGMA synchronous=NORMAL;" > /dev/null 2>&1
+# ==============================================================================
 
 # ================== [v3.1.3-v3.6.0 核心: 数据库结构无损热升级] ==================
 # 自动探测并增加缺失字段，屏蔽已存在的报错，保护老节点数据
