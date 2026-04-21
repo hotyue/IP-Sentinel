@@ -265,13 +265,12 @@ while true; do
                     chmod +x "/tmp/install_master.sh"
                     
                     # 抛出幽灵进程进行脱壳升级，传递静默变量与回执 ID
-                    export SILENT_MASTER_OTA="true"
-                    export OTA_CHAT_ID="$CHAT_ID"
-                    
-                    # [修复] 逃逸 Systemd Cgroup，防止被同归于尽机制误杀
+                    # [修复] 必须显式将环境变量注入到 bash -c 的指令串中，防止被 systemd-run 沙盒隔离丢弃
                     if command -v systemd-run >/dev/null 2>&1; then
-                        systemd-run --quiet --no-block /bin/bash /tmp/install_master.sh
+                        systemd-run --quiet --no-block /bin/bash -c "export SILENT_MASTER_OTA='true'; export OTA_CHAT_ID='$CHAT_ID'; bash /tmp/install_master.sh"
                     else
+                        export SILENT_MASTER_OTA="true"
+                        export OTA_CHAT_ID="$CHAT_ID"
                         nohup bash /tmp/install_master.sh >/dev/null 2>&1 & disown
                     fi
                     
