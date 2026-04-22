@@ -8,15 +8,15 @@
   },
   "trust_module": {
     "white_urls": [
-      "https://www.thsrc.com.tw/",
-      "https://www.dcard.tw/",
-      "https://www.cathaybk.com.tw/",
+      "https://www.gov.tw/",
       "https://www.momoshop.com.tw/",
       "https://tw.yahoo.com/",
-      "https://www.ntu.edu.tw/",
+      "https://www.cathaybk.com.tw/",
+      "https://www.dcard.tw/",
       "https://www.post.gov.tw/",
-      "https://www.pchome.com.tw/",
-      "https://www.gov.tw/"
+      "https://www.thsrc.com.tw/",
+      "https://www.ntu.edu.tw/",
+      "https://www.pchome.com.tw/"
     ],
     "static_urls": [
       "https://www.gov.tw/",
