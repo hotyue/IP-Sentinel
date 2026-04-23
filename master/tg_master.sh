@@ -83,6 +83,16 @@ db_exec "ALTER TABLE nodes ADD COLUMN enable_trust TEXT DEFAULT 'true';" 2>/dev/
 db_exec "ALTER TABLE nodes ADD COLUMN enable_ota TEXT DEFAULT 'false';" 2>/dev/null
 # ========================================================================
 
+# ================== [v4.0.0 核心: 增加 IP 质量趋势追踪表] ==================
+db_exec "CREATE TABLE IF NOT EXISTS ip_trend_log (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    node_name TEXT,
+    check_time DATETIME DEFAULT CURRENT_TIMESTAMP,
+    scam_score INTEGER,
+    nf_status TEXT
+);" 2>/dev/null
+# ========================================================================
+
 # --- 核心轮询循环 ---
 while true; do
     OFFSET=$(cat $OFFSET_FILE)
@@ -97,6 +107,23 @@ while true; do
             
             CHAT_ID=$(echo "$UPDATE" | jq -r '.message.chat.id // .callback_query.message.chat.id')
             TEXT=$(echo "$UPDATE" | jq -r '.message.text // .callback_query.data')
+
+            # ================== [v4.0.0 新增: 深海声呐暗号拦截与落盘] ==================
+            if [[ "$TEXT" == *"[SYSTEM_REPORT]|QUALITY|"* ]]; then
+                # 截获系统隐写报告，提取分数并存库 (格式: [SYSTEM_REPORT]|QUALITY|NODE_NAME|SCORE|NF_STAT)
+                REPORT_DATA=$(echo "$TEXT" | grep -o "\[SYSTEM_REPORT\].*")
+                NODE_ID=$(echo "$REPORT_DATA" | cut -d'|' -f3 | tr -cd 'a-zA-Z0-9_.-')
+                SCORE=$(echo "$REPORT_DATA" | cut -d'|' -f4 | tr -cd '0-9')
+                NF_ST=$(echo "$REPORT_DATA" | cut -d'|' -f5 | tr -cd 'a-zA-Z0-9_-')
+                
+                if [ -n "$NODE_ID" ] && [ -n "$SCORE" ]; then
+                    db_exec "INSERT INTO ip_trend_log (node_name, scam_score, nf_status) VALUES ('$NODE_ID', '$SCORE', '$NF_ST');"
+                fi
+                # 无需回复用户，因为 Agent 原战报已发在群中
+                continue
+            fi
+            # ======================================================================
+            
             REPLY_TO_TEXT=$(echo "$UPDATE" | jq -r '.message.reply_to_message.text // empty')
 
             # ================== [v3.5.2 新增: 拦截别名修改的对话回复] ==================
@@ -326,6 +353,84 @@ while true; do
                     ;;
                 # ====================================================================
 
+                # ------------------- 🚨 请将下面这段代码插入在这里 -------------------
+                
+                # ================== [v4.0.0 新增: 文本指令直接控制通道] ==================
+                "/quality"|"/quality@"*)
+                    TARGET_NODE=$(echo "$TEXT" | awk '{print $2}')
+                    if [ -z "$TARGET_NODE" ]; then
+                        send_msg "$CHAT_ID" "⚠️ 请指定目标节点。例如: \`/quality HK-1\`\n或通过雷达面板进行选择操作。"
+                    else
+                        TARGET_NODE=$(echo "$TARGET_NODE" | tr -cd 'a-zA-Z0-9_.-')
+                        CHAT_ID=$(echo "$CHAT_ID" | tr -cd '0-9-')
+                        
+                        # [加密通讯逻辑]
+                        AGENT_INFO=$(db_exec "SELECT agent_ip, agent_port FROM nodes WHERE chat_id='$CHAT_ID' AND node_name='$TARGET_NODE' LIMIT 1;")
+                        AGENT_IP=$(echo "$AGENT_INFO" | cut -d'|' -f1)
+                        AGENT_PORT=$(echo "$AGENT_INFO" | cut -d'|' -f2)
+
+                        if [ -n "$AGENT_IP" ] && [ -n "$AGENT_PORT" ]; then
+                            send_msg "$CHAT_ID" "⏳ 正在向 \`$TARGET_NODE\` ($AGENT_IP) 下发 [quality] 指令，请稍候..."
+                            
+                            # 动态 HMAC 签名防篡改
+                            TARGET_URL=$(generate_signed_url "$AGENT_IP" "$AGENT_PORT" "/trigger_quality")
+                            RESPONSE=$(curl -k -s -m 5 "$TARGET_URL" || echo "FAILED")
+                            if [ "$RESPONSE" == "FAILED" ] || [ -z "$RESPONSE" ]; then
+                                TARGET_URL_HTTP="${TARGET_URL/https:\/\//http:\/\/}"
+                                RESPONSE=$(curl -s -m 5 "$TARGET_URL_HTTP" || echo "FAILED")
+                            fi
+                            
+                            # 结果判定
+                            if [ "$RESPONSE" == "FAILED" ]; then
+                                send_msg "$CHAT_ID" "❌ 指令下发超时或失败！请检查节点公网 IP 或防火墙端口 ($AGENT_PORT) 是否放行。"
+                            elif [[ "$RESPONSE" == *"403"* ]]; then
+                                send_msg "$CHAT_ID" "⚠️ **拒绝执行**：该节点未在本地开启此模块，请检查安装时的配置！"
+                            else
+                                send_msg "$CHAT_ID" "✅ 节点 \`$TARGET_NODE\` 回应: 🔍 深海声呐已投放！请等待异步战报回传。"
+                            fi
+                        else
+                            send_msg "$CHAT_ID" "❌ 数据库中未找到该节点的通讯地址。"
+                        fi
+                    fi
+                    ;;
+
+                "/trend"|"/trend@"*)
+                    TARGET_NODE=$(echo "$TEXT" | awk '{print $2}')
+                    if [ -z "$TARGET_NODE" ]; then
+                        send_msg "$CHAT_ID" "⚠️ 请指定目标节点。例如: \`/trend HK-1\`\n或通过雷达面板进行选择操作。"
+                    else
+                        TARGET_NODE=$(echo "$TARGET_NODE" | tr -cd 'a-zA-Z0-9_.-')
+                        CHAT_ID=$(echo "$CHAT_ID" | tr -cd '0-9-')
+                        
+                        TREND_DATA=$(db_exec "SELECT datetime(check_time, 'localtime'), scam_score, nf_status FROM ip_trend_log WHERE node_name='$TARGET_NODE' ORDER BY check_time DESC LIMIT 10;")
+                        
+                        if [ -z "$TREND_DATA" ]; then
+                            send_msg "$CHAT_ID" "⚠️ 节点 \`$TARGET_NODE\` 暂无历史体检档案。请先执行 /quality 投放声呐进行探测。"
+                        else
+                            TARGET_ALIAS=$(db_exec "SELECT IFNULL(node_alias, node_name) FROM nodes WHERE chat_id='$CHAT_ID' AND node_name='$TARGET_NODE' LIMIT 1;")
+                            [ -z "$TARGET_ALIAS" ] && TARGET_ALIAS="$TARGET_NODE"
+
+                            TEXT_RES="📈 *[${TARGET_ALIAS}] IP 污染趋势图谱*\n\n"
+                            TEXT_RES+="时间 (本地) | 风险分 | NF解锁\n"
+                            TEXT_RES+="------------------------------------\n"
+                            
+                            while IFS='|' read -r c_time score nf; do
+                                [ -z "$score" ] && score="0"
+                                [ -z "$nf" ] && nf="Unknown"
+                                if [ "$score" -le 20 ]; then SCORE_EMJ="🟢"
+                                elif [ "$score" -le 60 ]; then SCORE_EMJ="🟡"
+                                else SCORE_EMJ="🔴"
+                                fi
+                                TEXT_RES+="\`${c_time}\` | ${SCORE_EMJ} \`${score}\` | \`${nf}\`\n"
+                            done <<< "$TREND_DATA"
+                            TEXT_RES+="\n_💡 提示：高危风险分 (🔴 >60) 极易触发 Google 验证码及 Cloudflare 5秒盾拦截。_"
+                            
+                            send_msg "$CHAT_ID" "$TEXT_RES"
+                        fi
+                    fi
+                    ;;
+                # ------------------- 🚨 插入代码到此结束 -------------------
+
                 "list_nodes")
                     # 【V3.1.3】一级菜单：大区聚合并列出数量
                     REGION_DATA=$(db_exec "SELECT region, COUNT(*) FROM nodes WHERE chat_id='$CHAT_ID' GROUP BY region;")
@@ -402,8 +507,8 @@ while true; do
                     [ "$ST_GOOGLE" == "true" ] && BTN_G="🟢 Google巡逻: 已开" && ACT_G="false" || { BTN_G="🔴 Google巡逻: 已停"; ACT_G="true"; }
                     [ "$ST_TRUST" == "true" ] && BTN_T="🟢 信用净化: 已开" && ACT_T="false" || { BTN_T="🔴 信用净化: 已停"; ACT_T="true"; }
 
-                    # 模块一：即时战术动作
-                    BTN_ACTION="[{\"text\":\"📍 触发 Google 纠偏\",\"callback_data\":\"google:$TARGET_NODE\"}, {\"text\":\"🛡️ 触发信用净化\",\"callback_data\":\"trust:$TARGET_NODE\"}], [{\"text\":\"📜 提取终端实时日志\",\"callback_data\":\"log:$TARGET_NODE\"}, {\"text\":\"📊 生成单机战报\",\"callback_data\":\"report:$TARGET_NODE\"}]"
+                    # 模块一：即时战术动作 (V4.0.0 引入深海声呐与趋势面板)
+                    BTN_ACTION="[{\"text\":\"📍 触发 Google 纠偏\",\"callback_data\":\"google:$TARGET_NODE\"}, {\"text\":\"🛡️ 触发信用净化\",\"callback_data\":\"trust:$TARGET_NODE\"}], [{\"text\":\"🔍 投放深海声呐 (查IP质量)\",\"callback_data\":\"quality:$TARGET_NODE\"}, {\"text\":\"📈 查看 IP 污染趋势图\",\"callback_data\":\"trend:$TARGET_NODE\"}], [{\"text\":\"📜 提取终端实时日志\",\"callback_data\":\"log:$TARGET_NODE\"}, {\"text\":\"📊 生成单机战报\",\"callback_data\":\"report:$TARGET_NODE\"}]"
                     
                     # 模块二：养护状态启停
                     BTN_TOGGLE="[{\"text\":\"$BTN_G\",\"callback_data\":\"toggle:google:$TARGET_NODE:$ACT_G\"}, {\"text\":\"$BTN_T\",\"callback_data\":\"toggle:trust:$TARGET_NODE:$ACT_T\"}]"
@@ -471,7 +576,8 @@ while true; do
                             [ "$ST_GOOGLE" == "true" ] && BTN_G="🟢 Google巡逻: 已开" && ACT_G="false" || { BTN_G="🔴 Google巡逻: 已停"; ACT_G="true"; }
                             [ "$ST_TRUST" == "true" ] && BTN_T="🟢 信用净化: 已开" && ACT_T="false" || { BTN_T="🔴 信用净化: 已停"; ACT_T="true"; }
 
-                            BTN_ACTION="[{\"text\":\"📍 触发 Google 纠偏\",\"callback_data\":\"google:$TARGET_NODE\"}, {\"text\":\"🛡️ 触发信用净化\",\"callback_data\":\"trust:$TARGET_NODE\"}], [{\"text\":\"📜 提取终端实时日志\",\"callback_data\":\"log:$TARGET_NODE\"}, {\"text\":\"📊 生成单机战报\",\"callback_data\":\"report:$TARGET_NODE\"}]"
+                            # 模块一：即时战术动作 (V4.0.0 引入深海声呐与趋势面板)
+                    BTN_ACTION="[{\"text\":\"📍 触发 Google 纠偏\",\"callback_data\":\"google:$TARGET_NODE\"}, {\"text\":\"🛡️ 触发信用净化\",\"callback_data\":\"trust:$TARGET_NODE\"}], [{\"text\":\"🔍 投放深海声呐 (查IP质量)\",\"callback_data\":\"quality:$TARGET_NODE\"}, {\"text\":\"📈 查看 IP 污染趋势图\",\"callback_data\":\"trend:$TARGET_NODE\"}], [{\"text\":\"📜 提取终端实时日志\",\"callback_data\":\"log:$TARGET_NODE\"}, {\"text\":\"📊 生成单机战报\",\"callback_data\":\"report:$TARGET_NODE\"}]"
                             BTN_TOGGLE="[{\"text\":\"$BTN_G\",\"callback_data\":\"toggle:google:$TARGET_NODE:$ACT_G\"}, {\"text\":\"$BTN_T\",\"callback_data\":\"toggle:trust:$TARGET_NODE:$ACT_T\"}]"
                             
                             if [ "$IS_OFFICIAL_GATEWAY" != "true" ] && [ "$ST_OTA" == "true" ]; then
@@ -619,10 +725,10 @@ while true; do
                     fi
                     ;;
 
-                # 【核心升级】增加拦截规则，支持 google 和 trust 前缀
-                google:*|trust:*|run:*|report:*|log:*)
+                # 【核心升级 v4.0.0】增加拦截规则，支持 quality 前缀
+                google:*|trust:*|run:*|report:*|log:*|quality:*)
                     # 🛡️ 提取并强制过滤动作参数、节点名与 CHAT_ID
-                    ACTION_TYPE=$(echo "$TEXT" | cut -d':' -f1 | tr -cd 'a-z')
+                    ACTION_TYPE=$(echo "$TEXT" | cut -d':' -f1)
                     TARGET_NODE=$(echo "$TEXT" | cut -d':' -f2 | tr -cd 'a-zA-Z0-9_.-')
                     CHAT_ID=$(echo "$CHAT_ID" | tr -cd '0-9-')
                     
@@ -657,6 +763,8 @@ while true; do
                                 TEXT_RES="✅ 节点 \`$TARGET_NODE\` 回应: 📍 Google 纠偏程序启动。"
                             elif [ "$ACTION_TYPE" == "trust" ]; then 
                                 TEXT_RES="✅ 节点 \`$TARGET_NODE\` 回应: 🛡️ IP 信用净化程序启动。"
+                            elif [ "$ACTION_TYPE" == "quality" ]; then 
+                                TEXT_RES="✅ 节点 \`$TARGET_NODE\` 回应: 🔍 深海声呐已投放！请等待异步战报回传。"
                             elif [ "$ACTION_TYPE" == "log" ]; then 
                                 TEXT_RES="✅ 节点 \`$TARGET_NODE\` 正在抓取日志..."
                             else 
@@ -674,6 +782,46 @@ while true; do
                         send_msg "$CHAT_ID" "❌ 数据库中未找到该节点的通讯地址。"
                     fi
                     ;;
+
+
+                trend:*)
+                    # [v4.0.0 新增: 生成 IP 质量趋势图]
+                    TARGET_NODE=$(echo "${TEXT#*:}" | tr -cd 'a-zA-Z0-9_.-')
+                    CHAT_ID=$(echo "$CHAT_ID" | tr -cd '0-9-')
+                    
+                    TREND_DATA=$(db_exec "SELECT datetime(check_time, 'localtime'), scam_score, nf_status FROM ip_trend_log WHERE node_name='$TARGET_NODE' ORDER BY check_time DESC LIMIT 10;")
+                    
+                    if [ -z "$TREND_DATA" ]; then
+                        TEXT_RES="⚠️ 节点 \`$TARGET_NODE\` 暂无历史体检档案。请先执行 [🔍 投放深海声呐] 进行探测。"
+                    else
+                        TARGET_ALIAS=$(db_exec "SELECT IFNULL(node_alias, node_name) FROM nodes WHERE chat_id='$CHAT_ID' AND node_name='$TARGET_NODE' LIMIT 1;")
+                        [ -z "$TARGET_ALIAS" ] && TARGET_ALIAS="$TARGET_NODE"
+
+                        TEXT_RES="📈 *[${TARGET_ALIAS}] IP 污染趋势图谱*\n\n"
+                        TEXT_RES+="时间 (本地) | 风险分 | NF解锁\n"
+                        TEXT_RES+="------------------------------------\n"
+                        
+                        while IFS='|' read -r c_time score nf; do
+                            # 清洗数据防空
+                            [ -z "$score" ] && score="0"
+                            [ -z "$nf" ] && nf="Unknown"
+                            
+                            if [ "$score" -le 20 ]; then SCORE_EMJ="🟢"
+                            elif [ "$score" -le 60 ]; then SCORE_EMJ="🟡"
+                            else SCORE_EMJ="🔴"
+                            fi
+                            TEXT_RES+="\`${c_time}\` | ${SCORE_EMJ} \`${score}\` | \`${nf}\`\n"
+                        done <<< "$TREND_DATA"
+                        TEXT_RES+="\n_💡 提示：高危风险分 (🔴 >60) 极易触发 Google 验证码及 Cloudflare 5秒盾拦截。_"
+                    fi
+                    
+                    if [ -n "$MSG_ID" ]; then
+                        edit_msg "$CHAT_ID" "$MSG_ID" "$TEXT_RES"
+                    else
+                        send_msg "$CHAT_ID" "$TEXT_RES"
+                    fi
+                    ;;
+                    
             esac
         done
     fi
