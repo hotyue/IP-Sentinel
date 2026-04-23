@@ -265,6 +265,15 @@ CREATE TABLE IF NOT EXISTS nodes (
     enable_ota TEXT DEFAULT 'false',
     PRIMARY KEY(chat_id, node_name)
 );
+
+-- [v4.0.0 新增] 核心情报表：记录历史 IP 质量数据，用于绘制趋势图
+CREATE TABLE IF NOT EXISTS ip_trend_log (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    node_name TEXT,
+    check_time DATETIME DEFAULT CURRENT_TIMESTAMP,
+    scam_score INTEGER,
+    nf_status TEXT
+);
 EOF
 echo "✅ 数据库创建成功: $DB_FILE"
 
