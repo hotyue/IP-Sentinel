@@ -242,6 +242,20 @@ class AgentHandler(http.server.BaseHTTPRequestHandler):
             except Exception as e:
                 print(f"Log transmission failed: {e}")
 
+            # ================== [v4.0.0 新增: 触发深海声呐] ==================
+            elif req_path == '/trigger_quality':
+                self.send_response(200)
+                self.send_header("Content-type", "text/plain")
+                self.end_headers()
+                self.wfile.write(b"Action Accepted: trigger_quality\n")
+                
+                script_path = '/opt/ip_sentinel/core/mod_quality.sh'
+                if os.path.exists(script_path):
+                    # 使用 Popen 且丢弃输入输出，实现绝对的异步脱离，不阻塞 Webhook 主线程
+                    subprocess.Popen(['bash', script_path], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            # =================================================================
+                
+
         # 路由 5: 节点重命名展示别名同步接口 (Base64 终极防御版)
         elif req_path == '/trigger_rename':
             b64_alias = query.get('b64', [''])[0]
