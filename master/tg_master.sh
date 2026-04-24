@@ -119,9 +119,9 @@ while true; do
                 SCORE=$(echo "$REPORT_DATA" | cut -d'|' -f4 | tr -cd '0-9')
                 
                 # [v4.0.2 修复] 放弃极端的字母白名单，改用黑名单过滤引号和分号，完美保留中文状态
-                GOOG_ST=$(echo "$REPORT_DATA" | cut -d'|' -f5 | tr -d '\r\n;\"\'\`')
-                NF_ST=$(echo "$REPORT_DATA" | cut -d'|' -f6 | tr -d '\r\n;\"\'\`')
-                GPT_ST=$(echo "$REPORT_DATA" | cut -d'|' -f7 | tr -d '\r\n;\"\'\`')
+                GOOG_ST=$(echo "$REPORT_DATA" | cut -d'|' -f5 | tr -d "\r\n;\"'\`")
+                NF_ST=$(echo "$REPORT_DATA" | cut -d'|' -f6 | tr -d "\r\n;\"'\`")
+                GPT_ST=$(echo "$REPORT_DATA" | cut -d'|' -f7 | tr -d "\r\n;\"'\`")
                 
                 [ -z "$GOOG_ST" ] && GOOG_ST="Unknown"
                 [ -z "$NF_ST" ] && NF_ST="Unknown"
