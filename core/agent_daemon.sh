@@ -62,16 +62,14 @@ if [ -n "$AGENT_IP" ]; then
 fi
 
 # ================== [v3.6.3 新增: 自动生成自签名 TLS 加密证书] ==================
-# [修复] 仅在私有中枢模式下生成证书。官方网关模式下，CF Worker 严格拒绝自签名，必须回退 HTTP
-if [ "$TG_TOKEN" != "OFFICIAL_GATEWAY_MODE" ]; then
-    CERT_FILE="${INSTALL_DIR}/core/cert.pem"
-    KEY_FILE="${INSTALL_DIR}/core/key.pem"
-    if [ ! -f "$CERT_FILE" ] || [ ! -f "$KEY_FILE" ]; then
-        echo "🔐 [Agent] 正在生成本地自签名 TLS 加密证书 (2048位 RSA)..."
-        openssl req -x509 -nodes -days 3650 -newkey rsa:2048 \
-            -keyout "$KEY_FILE" -out "$CERT_FILE" \
-            -subj "/C=US/O=IP-Sentinel/CN=Agent-Sec" >/dev/null 2>&1 || true
-    fi
+# [修复] 彻底废除官方网关免 TLS 的裸奔逻辑，全网强制生成证书装甲
+CERT_FILE="${INSTALL_DIR}/core/cert.pem"
+KEY_FILE="${INSTALL_DIR}/core/key.pem"
+if [ ! -f "$CERT_FILE" ] || [ ! -f "$KEY_FILE" ]; then
+    echo "🔐 [Agent] 正在生成本地自签名 TLS 加密证书 (2048位 RSA)..."
+    openssl req -x509 -nodes -days 3650 -newkey rsa:2048 \
+        -keyout "$KEY_FILE" -out "$CERT_FILE" \
+        -subj "/C=US/O=IP-Sentinel/CN=Agent-Sec" >/dev/null 2>&1 || true
 fi
 # ==============================================================================
 
@@ -494,22 +492,13 @@ except Exception:
     ThreadedServer.address_family = socket.AF_INET
     httpd = ThreadedServer(("0.0.0.0", PORT), AgentHandler)
 
-# ================== [v3.6.3 核心: 挂载 TLS 加密隧道 (动态适配兼容版)] ==================
+# ================== [v3.6.3 核心: 挂载 TLS 加密隧道 (强制装甲版)] ==================
 import ssl
 cert_path = '/opt/ip_sentinel/core/cert.pem'
 key_path = '/opt/ip_sentinel/core/key.pem'
 
-# 核心判定：提取配置中的 TOKEN 标识
-is_official_gateway = False
-if os.path.exists('/opt/ip_sentinel/config.conf'):
-    with open('/opt/ip_sentinel/config.conf', 'r') as f:
-        for line in f:
-            if line.startswith('TG_TOKEN=') and 'OFFICIAL_GATEWAY_MODE' in line:
-                is_official_gateway = True
-                break
-
-# 仅在非官方网关且证书存在时，才挂载 TLS 装甲
-if not is_official_gateway and os.path.exists(cert_path) and os.path.exists(key_path):
+# 全网强制启用 TLS 装甲，彻底消灭 HTTP 裸奔漏洞
+if os.path.exists(cert_path) and os.path.exists(key_path):
     try:
         context = ssl.create_default_context(ssl.Purpose.CLIENT_AUTH)
         context.load_cert_chain(certfile=cert_path, keyfile=key_path)

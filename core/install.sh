@@ -187,8 +187,7 @@ rm -f /tmp/cron_clean
 
 # 3. 抹除旧版核心代码，杜绝代码冲突 (根据模式分流)
 if [ "$UPGRADE_MODE" == "true" ]; then
-    # 升级模式：仅销毁核心引擎，严格保留 config 与 data
-    rm -rf "${INSTALL_DIR}/core" 2>/dev/null
+    # [修复] 升级模式：不再提前销毁核心引擎，改为后续下载成功后的原子化替换，彻底防止断网变砖！
     if [ "$KEEP_LOGS" == "false" ]; then
         rm -rf "${INSTALL_DIR}/logs" 2>/dev/null
         echo -e "🗑️ 历史日志已按指令清空。"
@@ -611,35 +610,45 @@ if [ "$UPGRADE_MODE" == "true" ]; then
 fi
 # ========================================================================
 
-# 6. 拉取全套组件 (按需下载，绝不浪费空间)
-echo -e "\n[6/7] 正在根据模块开关部署核心引擎与热数据..."
-# 确保目录在升级模式下也能被正确建立
-mkdir -p "${INSTALL_DIR}/core"
+# 6. 拉取全套组件 (原子化升级，防断网变砖)
+echo -e "\n[6/7] 正在部署核心引擎与热数据..."
 mkdir -p "${INSTALL_DIR}/data/keywords"
 
-# 基础公共组件
-curl -sL "${REPO_RAW_URL}/core/runner.sh" -o "${INSTALL_DIR}/core/runner.sh"
-curl -sL "${REPO_RAW_URL}/core/updater.sh" -o "${INSTALL_DIR}/core/updater.sh"
-curl -sL "${REPO_RAW_URL}/core/tg_report.sh" -o "${INSTALL_DIR}/core/tg_report.sh"
-curl -sL "${REPO_RAW_URL}/core/agent_daemon.sh" -o "${INSTALL_DIR}/core/agent_daemon.sh"
-curl -sL "${REPO_RAW_URL}/core/uninstall.sh" -o "${INSTALL_DIR}/core/uninstall.sh"
-curl -sL "${REPO_RAW_URL}/data/user_agents.txt" -o "${INSTALL_DIR}/data/user_agents.txt"
+# [核心修复] 开辟临时下载区，确保下载 100% 成功后再替换旧核心
+TMP_CORE="/tmp/ip_sentinel_core_$$"
+mkdir -p "$TMP_CORE"
 
-# [v3.6.4 修复] 废除物理阉割，全量下载模块装甲，交由 config.conf 动态控制底层启停
-curl -sL "${REPO_RAW_URL}/core/mod_google.sh" -o "${INSTALL_DIR}/core/mod_google.sh"
-# 动态匹配词库下载逻辑
+# 拉取核心代码至临时区
+curl -sL "${REPO_RAW_URL}/core/runner.sh" -o "${TMP_CORE}/runner.sh"
+curl -sL "${REPO_RAW_URL}/core/updater.sh" -o "${TMP_CORE}/updater.sh"
+curl -sL "${REPO_RAW_URL}/core/tg_report.sh" -o "${TMP_CORE}/tg_report.sh"
+curl -sL "${REPO_RAW_URL}/core/agent_daemon.sh" -o "${TMP_CORE}/agent_daemon.sh"
+curl -sL "${REPO_RAW_URL}/core/uninstall.sh" -o "${TMP_CORE}/uninstall.sh"
+curl -sL "${REPO_RAW_URL}/core/mod_google.sh" -o "${TMP_CORE}/mod_google.sh"
+curl -sL "${REPO_RAW_URL}/core/mod_trust.sh" -o "${TMP_CORE}/mod_trust.sh"
+curl -sL "${REPO_RAW_URL}/core/mod_quality.sh" -o "${TMP_CORE}/mod_quality.sh"
+
+# 🛡️ 防砖终极校验：检查关键文件是否真实存在且不为空
+if [ ! -s "${TMP_CORE}/runner.sh" ] || [ ! -s "${TMP_CORE}/agent_daemon.sh" ]; then
+    echo -e "\033[31m❌ 致命错误：核心代码拉取失败！网络阻断或 GitHub Raw 异常。\033[0m"
+    echo "🛡️ 防砖机制触发：已中止覆盖，旧版哨兵引擎仍安全存活中。"
+    rm -rf "$TMP_CORE"
+    exit 1
+fi
+
+# 校验完美通过，执行原子化交接
+rm -rf "${INSTALL_DIR}/core" 2>/dev/null
+mv "$TMP_CORE" "${INSTALL_DIR}/core"
+chmod +x ${INSTALL_DIR}/core/*.sh
+
+# 拉取热数据与词库
+curl -sL "${REPO_RAW_URL}/data/user_agents.txt" -o "${INSTALL_DIR}/data/user_agents.txt"
 if [ "$UPGRADE_MODE" == "false" ]; then
     curl -sL "${REPO_RAW_URL}/data/keywords/${KEYWORD_FILE}" -o "${INSTALL_DIR}/data/keywords/${KEYWORD_FILE}"
 else
     # 升级模式：利用已有的 REGION_CODE 更新通用词库
     curl -sL "${REPO_RAW_URL}/data/keywords/kw_${REGION_CODE}.txt" -o "${INSTALL_DIR}/data/keywords/kw_${REGION_CODE}.txt" 2>/dev/null || true
 fi
-
-curl -sL "${REPO_RAW_URL}/core/mod_trust.sh" -o "${INSTALL_DIR}/core/mod_trust.sh"
-# [v4.0.0 新增] 下载深海声呐 IP 质量检测模块
-curl -sL "${REPO_RAW_URL}/core/mod_quality.sh" -o "${INSTALL_DIR}/core/mod_quality.sh"
-
-chmod +x ${INSTALL_DIR}/core/*.sh
 
 # 7. 配置系统定时任务 (高频调度与看门狗)
 echo -e "\n[7/7] 正在注入系统守护进程与调度器..."
