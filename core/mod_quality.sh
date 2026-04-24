@@ -5,17 +5,36 @@
 
 source /opt/ip_sentinel/config.conf
 
-IP_PROTO="${IP_PREF:-4}"
+# [恢复被误删的变量] 提取纯净公网 IP，专门用于战报底部的 Scamalytics 直达链接
+TARGET_IP=$(echo "${PUBLIC_IP:-$BIND_IP}" | tr -d '[]')
 
-# [核心修复] 动态装配参数阵列：默认注入 -y(跳过确认), -j(输出JSON), -f(输出完整明文IP)
-PROBE_ARGS=("-y" "-j" "-f" "-${IP_PROTO}")
+# ==========================================
+# 1. 动态网络锚定与协议自适应 (专为多 IP / NAT 架构打造)
+# ==========================================
+DYNAMIC_IP_PREF="${IP_PREF:-4}"
+PROBE_ARGS=("-y" "-j" "-f") # 默认注入: 自动确认、JSON格式、明文无掩码IP
 
-# 仅当 BIND_IP 真实存在时（即非 NAT 的纯物理直连机），才向官方探针下发强制绑卡指令
-if [ -n "$BIND_IP" ]; then
-    PROBE_ARGS+=("-i" "$(echo "$BIND_IP" | tr -d '[]')")
+# 强壮正则：支持 V4, V6 以及带有 [] 护甲的 V6 (兼容多 IP 站群机)
+if [[ -n "$BIND_IP" && "$BIND_IP" =~ ^[0-9a-fA-F:\[\]\.]+$ ]]; then
+    RAW_BIND_IP=$(echo "$BIND_IP" | tr -d '[]')
+    # 严格探测物理网卡/虚拟 IP 存活状态，防止 IP 漂移导致探针彻底报错
+    if ip addr show 2>/dev/null | grep -qw "$RAW_BIND_IP"; then
+        # 核心：精准锁定多 IP 机器的出口网卡，指哪打哪
+        PROBE_ARGS+=("-i" "$RAW_BIND_IP")
+        
+        # 智能识别 V4 / V6，强制覆盖系统默认的 IP_PREF
+        if [[ "$RAW_BIND_IP" == *":"* ]]; then
+            DYNAMIC_IP_PREF="6"
+        elif [[ "$RAW_BIND_IP" == *"."* ]]; then
+            DYNAMIC_IP_PREF="4"
+        fi
+    fi
 fi
 
-# 1. 静默拉取原始数据 (消除短链接 RCE 劫持风险，收编为本地固化执行)
+# 补齐协议版本参数 (-4 或 -6)
+PROBE_ARGS+=("-${DYNAMIC_IP_PREF}")
+
+# 2. 静默拉取原始数据 (消除短链接 RCE 劫持风险，收编为本地固化执行)
 PROBE_SCRIPT="/opt/ip_sentinel/core/ip_probe.sh"
 if [ ! -x "$PROBE_SCRIPT" ]; then
     # 若本地探针尚未就绪，直接从 GitHub 官方主干拉取底层源码，绕过未知域名
