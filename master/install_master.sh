@@ -21,10 +21,11 @@ REPO_RAW_URL="https://raw.githubusercontent.com/hotyue/IP-Sentinel/dev/v4.0.0-so
 
 # [核心: 动态提取 Master 专属版本锚点 (KV 解析法)]
 # 通过 grep 定位 MASTER_VERSION 行，再通过 cut 提取等号右侧的值
-TARGET_VERSION=$(curl -s -m 3 "${REPO_RAW_URL}/version.txt" | grep "^MASTER_VERSION=" | cut -d'=' -f2 | tr -d '[:space:]')
+# [修复] 增加 -L 与双栈容灾 (-4)，解决纯 V6 或 V6 优先机器连接 GitHub Raw 易超时的问题
+TARGET_VERSION=$( (curl -sL -m 5 "${REPO_RAW_URL}/version.txt" || curl -4 -sL -m 5 "${REPO_RAW_URL}/version.txt") 2>/dev/null | grep "^MASTER_VERSION=" | cut -d'=' -f2 | tr -d '[:space:]')
 
-# 🛡️ 兜底防线：如果网络波动拉取失败，启用内置的安全兜底版本
-TARGET_VERSION=${TARGET_VERSION:-"3.5.0"}
+# 🛡️ 兜底防线：如果网络波动拉取失败，启用内置的最新兜底版本
+TARGET_VERSION=${TARGET_VERSION:-"4.0.0"}
 
 MASTER_DIR="/opt/ip_sentinel_master"
 DB_FILE="${MASTER_DIR}/sentinel.db"
