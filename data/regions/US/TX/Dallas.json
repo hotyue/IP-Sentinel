@@ -1,0 +1,45 @@
+{
+  "region_name": "United States - Dallas",
+  "google_module": {
+    "base_lat": 32.7767,
+    "base_lon": -96.7970,
+    "lang_params": "hl=en&gl=US",
+    "valid_url_suffix": "com"
+  },
+  "trust_module": {
+    "white_urls": [
+      "https://www.dallasnews.com/",
+      "https://www.texas.gov/",
+      "https://www.wfaa.com/",
+      "https://www.nbcdfw.com/",
+      "https://www.fox4news.com/",
+      "https://www.dallascityhall.com/",
+      "https://www.cnn.com/",
+      "https://www.foxnews.com/",
+      "https://www.nytimes.com/",
+      "https://www.wsj.com/",
+      "https://www.usatoday.com/",
+      "https://www.amazon.com/",
+      "https://www.walmart.com/",
+      "https://www.target.com/",
+      "https://www.chase.com/",
+      "https://www.bankofamerica.com/",
+      "https://www.wellsfargo.com/",
+      "https://www.zillow.com/",
+      "https://www.espn.com/",
+      "https://www.weather.com/"
+    ],
+    "static_urls": [
+      "https://www.texas.gov/",
+      "https://www.dallasnews.com/",
+      "https://www.cnn.com/",
+      "https://www.foxnews.com/",
+      "https://www.nytimes.com/",
+      "https://www.amazon.com/",
+      "https://www.walmart.com/",
+      "https://www.target.com/",
+      "https://www.chase.com/",
+      "https://www.bankofamerica.com/"
+    ]
+  }
+}

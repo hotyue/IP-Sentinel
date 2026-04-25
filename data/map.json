@@ -304,6 +304,16 @@
                   "name": "Seattle (西雅图)"
                 }
               ]
+            },
+            {
+              "id": "TX",
+              "name": "Texas (得克萨斯州)",
+              "cities": [
+                {
+                  "id": "Dallas",
+                  "name": "Dallas (达拉斯)"
+                }
+              ]
             }
           ]
         },
