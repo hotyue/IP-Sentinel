@@ -432,9 +432,9 @@ while true; do
                             TARGET_ALIAS=$(db_exec "SELECT IFNULL(node_alias, node_name) FROM nodes WHERE chat_id='$CHAT_ID' AND node_name='$TARGET_NODE' LIMIT 1;")
                             [ -z "$TARGET_ALIAS" ] && TARGET_ALIAS="$TARGET_NODE"
 
-                            TEXT_RES="📈 *[${TARGET_ALIAS}] 历史态势感知 (近15次)*%0A%0A"
-                            TEXT_RES+="时间(本地)  | 风险 | 谷歌 | NF | GPT%0A"
-                            TEXT_RES+="-----------------------------------------%0A"
+                            TEXT_RES="📈 *[${TARGET_ALIAS}] 历史态势感知 (近15次)*\n\n"
+                            TEXT_RES+="时间(本地)  | 风险 | 谷歌 | NF | GPT\n"
+                            TEXT_RES+="-----------------------------------------\n"
                             
                             while IFS='|' read -r c_time score goog nf gpt; do
                                 [ -z "$score" ] && score="0"
@@ -449,9 +449,9 @@ while true; do
                                 else SCORE_EMJ="🔴"
                                 fi
                                 
-                                TEXT_RES+="\`${short_time}\` | ${SCORE_EMJ}\`${score}\` | \`${goog}\` | \`${nf}\` | \`${gpt}\`%0A"
+                                TEXT_RES+="\`${short_time}\` | ${SCORE_EMJ}\`${score}\` | \`${goog}\` | \`${nf}\` | \`${gpt}\`\n"
                             done <<< "$TREND_DATA"
-                            TEXT_RES+="%0A_💡 提示：🔴风险分 >60 极易触发网页验证码拦截；谷歌显示 CN 即为高危送中。_"
+                            TEXT_RES+="\n_💡 提示：🔴风险分 >60 极易触发网页验证码拦截；谷歌显示 CN 即为高危送中。_"
                             
                             # [v4.0.3 体验升级] 注入交互式控制台按钮
                             BTNS="[[{\"text\":\"⚙️ 调出该节点控制台\",\"callback_data\":\"manage:$TARGET_NODE\"}]]"
@@ -803,9 +803,9 @@ while true; do
                         TARGET_ALIAS=$(db_exec "SELECT IFNULL(node_alias, node_name) FROM nodes WHERE chat_id='$CHAT_ID' AND node_name='$TARGET_NODE' LIMIT 1;")
                         [ -z "$TARGET_ALIAS" ] && TARGET_ALIAS="$TARGET_NODE"
 
-                        TEXT_RES="📈 *[${TARGET_ALIAS}] 历史态势感知 (近15次)*%0A%0A"
-                        TEXT_RES+="时间(本地)  | 风险 | 谷歌 | NF | GPT%0A"
-                        TEXT_RES+="-----------------------------------------%0A"
+                        TEXT_RES="📈 *[${TARGET_ALIAS}] 历史态势感知 (近15次)*\n\n"
+                        TEXT_RES+="时间(本地)  | 风险 | 谷歌 | NF | GPT\n"
+                        TEXT_RES+="-----------------------------------------\n"
                         
                         while IFS='|' read -r c_time score goog nf gpt; do
                             [ -z "$score" ] && score="0"
@@ -822,9 +822,9 @@ while true; do
                             fi
                             
                             # 拼接紧凑排版
-                            TEXT_RES+="\`${short_time}\` | ${SCORE_EMJ}\`${score}\` | \`${goog}\` | \`${nf}\` | \`${gpt}\`%0A"
+                            TEXT_RES+="\`${short_time}\` | ${SCORE_EMJ}\`${score}\` | \`${goog}\` | \`${nf}\` | \`${gpt}\`\n"
                         done <<< "$TREND_DATA"
-                        TEXT_RES+="%0A_💡 提示：🔴风险分 >60 极易触发网页验证码拦截；谷歌显示 CN 即为高危送中。_"
+                        TEXT_RES+="\n_💡 提示：🔴风险分 >60 极易触发网页验证码拦截；谷歌显示 CN 即为高危送中。_"
                     fi
                     
                     # [v4.0.3 体验升级] 注入交互式控制台按钮，并调用原生 UI 重绘函数
