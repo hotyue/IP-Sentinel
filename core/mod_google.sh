@@ -170,44 +170,31 @@ for ((i=1; i<=TOTAL_ACTIONS; i++)); do
     fi
 done
 
-# --- [结果纠偏自检 (V3.2.1 高精度容错版)] ---
-# [V3.2.1 热修复] 探针同样应用 $DYNAMIC_IP_PREF 协议自适应
-PROBE_RESULT=$(curl $CURL_BIND_OPT $DYNAMIC_IP_PREF -m 15 -s -L -o /dev/null -w "%{http_code}|%{url_effective}" https://www.google.com)
+# --- [结果纠偏自检 (V4.0.3 终极真理版: 穿透 Google 真实 GeoIP 数据库)] ---
+# 彻底抛弃不可靠的前端 URL 重定向判定 (解决 Issue #35 和 #14 的假阳性问题)
+# 战术揭秘：Google 与 YouTube 共享绝对一致的底层 GeoIP 库。
+# 我们直接抓取 YouTube 源码内部的 "GL" (Geo-Location) 环境变量，拿到 Google 视角的 2 位国家代码！
 
-# 分离状态码与 URL
-PROBE_CODE=$(echo "$PROBE_RESULT" | cut -d'|' -f1)
-FINAL_URL=$(echo "$PROBE_RESULT" | cut -d'|' -f2)
+log "$MODULE_NAME" "INFO " "正在穿透获取 Google 底层真实 GeoIP 锚点..."
+YT_HTML=$(curl $CURL_BIND_OPT $DYNAMIC_IP_PREF -m 15 -s -L https://www.youtube.com)
 
-# 0. 致命拦截：网络断开、DNS 解析失败或严重超时
-if [ "$PROBE_CODE" == "000" ] || [ -z "$FINAL_URL" ]; then
-    STATUS="🚨 探针失效 (网络阻断或底层路由异常)"
+# 精准正则提取 "GL":"XX" 中的两位字母 (完美兼容所有老旧系统环境)
+REAL_REGION=$(echo "$YT_HTML" | grep -o '"GL":"[A-Za-z]\{2\}"' | head -n 1 | cut -d'"' -f4 | tr 'a-z' 'A-Z')
+
+if [ -z "$REAL_REGION" ]; then
+    STATUS="🚨 探针失效 (网络阻断，或已被 Google 验证码/5秒盾拦截)"
 else
-    # 核心战术：精准提取最终 URL 的域名部分
-    ACTUAL_DOMAIN=$(echo "$FINAL_URL" | awk -F/ '{print $3}')
+    # [基准对齐] 提取配置大区 (兼容州级穿透，如 US-TX -> US)，并修正英国的 ISO 标准代码
+    TARGET_CC="${REGION_CODE%%-*}"
+    [ "$TARGET_CC" == "UK" ] && TARGET_CC="GB"
     
-    # [V3.2.1 优化] 使用通配符 * 剔除任意前缀 (无论是 www.google. 还是 ipv4.google.)
-    ACTUAL_SUFFIX=${ACTUAL_DOMAIN#*google.}
-
-    # 1. 优先验证：绝对匹配目标后缀 (彻底杜绝 com 包含于 com.hk 的陷阱)
-    if [ "$ACTUAL_SUFFIX" == "$VALID_URL_SUFFIX" ]; then
-        STATUS="✅ 目标区域达成 ($ACTUAL_SUFFIX)"
-
-    # 2. 核心拦截：精准捕捉送中特征 (com.hk)
-    elif [ "$ACTUAL_SUFFIX" == "com.hk" ]; then
-        if [ "$REGION_CODE" == "HK" ]; then
-            STATUS="✅ 目标区域达成 (HK 专属 com.hk)"
-        else
-            STATUS="❌ 严重漂移！判定为送中区 (实际跳往 $ACTUAL_SUFFIX)"
-        fi
-
-    # 3. 宽容处理：遵守 Google 无跳转新规 (严格限定必须是纯粹的 com)
-    # [视觉优化] 留在 .com 代表 IP 极度纯净未被区域沙盒锁定，计入成功战绩！
-    elif [ "$ACTUAL_SUFFIX" == "com" ]; then
-        STATUS="✅ 目标区域达成 (免签停留 .com 通用主站)"
-
-    # 4. 跨区漂移：所有预判之外的后缀，全部视为异常
+    # 终极审判逻辑
+    if [ "$REAL_REGION" == "CN" ]; then
+        STATUS="❌ 严重高危！IP 已被 Google 判定为中国大陆 (送中)！"
+    elif [ "$REAL_REGION" == "$TARGET_CC" ]; then
+        STATUS="✅ 目标区域达成 (底层真实锚定: $REAL_REGION)"
     else
-        STATUS="⚠️ 跨区跳板漂移 (当前实际归属: $ACTUAL_SUFFIX)"
+        STATUS="⚠️ 区域发生漂移！目标 $TARGET_CC，实际归属 $REAL_REGION (跨区送医/送美)"
     fi
 fi
 
