@@ -176,8 +176,8 @@ DNS_MARK=$(echo "$JSON_DATA" | jq -r '.Mail.DNSBlacklist.Marked // "0"' 2>/dev/n
 WARNING_MSG=""
 # [修复] 官方 JSON 已经去除了方括号，直接匹配 CN 或者状态包含中国
 if [[ "$RAW_YT_REG" == "CN" ]] || [[ "$RAW_YT_STAT" == *"中国"* ]]; then
-    # [修复] 适配 JSON Payload，采用标准换行符 \n
-    WARNING_MSG="\n🚨 **[高危] 该节点已被 Google 判定为中国大陆 (送中)！**\n"
+    # [修复] 采用 Bash 扩展转义 ($'...')，彻底解决直接打印 \n 字符的问题
+    WARNING_MSG=$'\n🚨 **[高危] 该节点已被 Google 判定为中国大陆 (送中)！**\n'
 fi
 
 # 7. 组装情报级 Markdown 战报
