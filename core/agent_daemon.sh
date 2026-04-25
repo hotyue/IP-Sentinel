@@ -244,17 +244,27 @@ class AgentHandler(http.server.BaseHTTPRequestHandler):
                 
                 text_msg = f"📄 <b>[{node_alias}] 实时日志 (v{local_ver}):</b>\n<pre><code>{log_data}</code></pre>"
                 
-                data = urllib.parse.urlencode({
+                # [v4.0.3 体验升级] 引入 json 模块并改用 JSON Payload，挂载返回控制台按钮
+                import json
+                node_name_cb = config.get('NODE_NAME', 'Unknown')
+                payload = {
                     'chat_id': config.get('CHAT_ID', ''),
                     'text': text_msg,
-                    'parse_mode': 'HTML'
-                }).encode('utf-8')
+                    'parse_mode': 'HTML',
+                    'reply_markup': {
+                        'inline_keyboard': [[{'text': '⚙️ 调出该节点控制台', 'callback_data': f'manage:{node_name_cb}'}]]
+                    }
+                }
+                data = json.dumps(payload).encode('utf-8')
                 
                 req = urllib.request.Request(
                     config.get('TG_API_URL', ''), 
                     data=data,
-                    # [动态化] 彻底消灭硬编码，使用运行态版本号
-                    headers={'User-Agent': f'IP-Sentinel-Agent/{local_ver}'}
+                    # [动态化] 彻底消灭硬编码，使用运行态版本号，并声明 JSON 头
+                    headers={
+                        'User-Agent': f'IP-Sentinel-Agent/{local_ver}',
+                        'Content-Type': 'application/json'
+                    }
                 )
                 urllib.request.urlopen(req, timeout=10)
                 
