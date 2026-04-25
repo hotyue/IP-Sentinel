@@ -11,8 +11,7 @@ source "$CONF"
 
 # [核心: 运行态版本继承与云通信地址]
 REPO_RAW_URL="https://raw.githubusercontent.com/hotyue/IP-Sentinel/main"
-# 临时改为开发地址用于测试
-# REPO_RAW_URL="https://raw.githubusercontent.com/hotyue/IP-Sentinel/v3.6.2-rc"
+
 # MASTER_VERSION 已经在上方的 source "$CONF" 中被载入
 # 如果本地极度陈旧没有该变量，才给定一个基础兜底值，避免变量为空导致崩溃
 MASTER_VERSION=${MASTER_VERSION:-"3.5.0"}
@@ -21,6 +20,26 @@ OFFSET_FILE="${MASTER_DIR}/.tg_offset"
 [[ -f $OFFSET_FILE ]] || echo "0" > $OFFSET_FILE
 
 # --- 工具函数 ---
+# ================== [v4.0.3 核心: 全球全能旗帜渲染引擎] ==================
+get_flag() {
+    local region=$(echo "$1" | tr 'a-z' 'A-Z')
+    local base_cc="${region%%-*}" # 提取横杠前的主国家代码 (例如 US-TX 提取为 US)
+    local flag="🌐"
+    case "$base_cc" in
+        US) flag="🇺🇸" ;; JP) flag="🇯🇵" ;; HK) flag="🇭🇰" ;; TW) flag="🇹🇼" ;; SG) flag="🇸🇬" ;;
+        UK|GB) flag="🇬🇧" ;; DE) flag="🇩🇪" ;; FR) flag="🇫🇷" ;; NL) flag="🇳🇱" ;; CA) flag="🇨🇦" ;;
+        AU) flag="🇦🇺" ;; KR) flag="🇰🇷" ;; IN) flag="🇮🇳" ;; BR) flag="🇧🇷" ;; RU) flag="🇷🇺" ;;
+        CH) flag="🇨🇭" ;; SE) flag="🇸🇪" ;; NO) flag="🇳🇴" ;; DK) flag="🇩🇰" ;; FI) flag="🇫🇮" ;;
+        IT) flag="🇮🇹" ;; ES) flag="🇪🇸" ;; PT) flag="🇵🇹" ;; IE) flag="🇮🇪" ;; PL) flag="🇵🇱" ;;
+        AT) flag="🇦🇹" ;; BE) flag="🇧🇪" ;; TR) flag="🇹🇷" ;; ZA) flag="🇿🇦" ;; AE) flag="🇦🇪" ;;
+        MY) flag="🇲🇾" ;; ID) flag="🇮🇩" ;; VN) flag="🇻🇳" ;; TH) flag="🇹🇭" ;; PH) flag="🇵🇭" ;;
+        NZ) flag="🇳🇿" ;; AR) flag="🇦🇷" ;; CL) flag="🇨🇱" ;; MX) flag="🇲🇽" ;; IL) flag="🇮🇱" ;;
+        SA) flag="🇸🇦" ;; EG) flag="🇪🇬" ;; NG) flag="🇳🇬" ;; KE) flag="🇰🇪" ;; RO) flag="🇷🇴" ;;
+        BG) flag="🇧🇬" ;; CZ) flag="🇨🇿" ;; HU) flag="🇭🇺" ;; GR) flag="🇬🇷" ;; UA) flag="🇺🇦" ;;
+    esac
+    echo "$flag"
+}
+
 send_ui() {
     curl -s --connect-timeout 5 -m 10 -X POST "https://api.telegram.org/bot${TG_TOKEN}/sendMessage" \
         -H "Content-Type: application/json" \
@@ -214,13 +233,7 @@ while true; do
                     BTNS="["
                     while IFS='|' read -r REGION_NAME NODE_COUNT; do
                         [ -z "$REGION_NAME" ] && REGION_NAME="UNKNOWN"
-                        FLAG="🌐"
-                        case "$REGION_NAME" in
-                            "US") FLAG="🇺🇸" ;; "JP") FLAG="🇯🇵" ;; "HK") FLAG="🇭🇰" ;;
-                            "SG") FLAG="🇸🇬" ;; "UK"|"GB") FLAG="🇬🇧" ;; "DE") FLAG="🇩🇪" ;; "FR") FLAG="🇫🇷" ;;
-                            "CA") FLAG="🇨🇦" ;; "AU") FLAG="🇦🇺" ;; "KR") FLAG="🇰🇷" ;; "NL") FLAG="🇳🇱" ;;
-                            "BR") FLAG="🇧🇷" ;; "IN") FLAG="🇮🇳" ;; "TW") FLAG="🇹🇼" ;;
-                        esac
+                        FLAG=$(get_flag "$REGION_NAME")
                         BTNS="$BTNS[{\"text\":\"$FLAG $REGION_NAME ($NODE_COUNT 台)\",\"callback_data\":\"region:$REGION_NAME\"}],"
                     done <<< "$REGION_DATA"
                     BTNS="${BTNS%,}]"
@@ -455,14 +468,8 @@ while true; do
                         BTNS="["
                         while IFS='|' read -r REGION_NAME NODE_COUNT; do
                             [ -z "$REGION_NAME" ] && REGION_NAME="UNKNOWN"
-                            FLAG="🌐"
-                            case "$REGION_NAME" in
-                                "US") FLAG="🇺🇸" ;; "JP") FLAG="🇯🇵" ;; "HK") FLAG="🇭🇰" ;;
-                                "SG") FLAG="🇸🇬" ;; "UK"|"GB") FLAG="🇬🇧" ;; "DE") FLAG="🇩🇪" ;; "FR") FLAG="🇫🇷" ;;
-                                "CA") FLAG="🇨🇦" ;; "AU") FLAG="🇦🇺" ;; "KR") FLAG="🇰🇷" ;; "NL") FLAG="🇳🇱" ;;
-                                "BR") FLAG="🇧🇷" ;; "IN") FLAG="🇮🇳" ;; "TW") FLAG="🇹🇼" ;;
-                            esac
-                            BTNS="$BTNS[{\"text\":\"$FLAG $REGION_NAME ($NODE_COUNT 台)\",\"callback_data\":\"region:$REGION_NAME\"}],"
+                        FLAG=$(get_flag "$REGION_NAME")
+                        BTNS="$BTNS[{\"text\":\"$FLAG $REGION_NAME ($NODE_COUNT 台)\",\"callback_data\":\"region:$REGION_NAME\"}],"
                         done <<< "$REGION_DATA"
                         # L1 追加返回中枢逃生舱
                         BTNS="$BTNS[{\"text\":\"🏠 回到司令部\",\"callback_data\":\"/start\"}]]"
@@ -624,13 +631,7 @@ while true; do
                         BTNS="["
                         while IFS='|' read -r REGION_NAME NODE_COUNT; do
                             [ -z "$REGION_NAME" ] && REGION_NAME="UNKNOWN"
-                            FLAG="🌐"
-                            case "$REGION_NAME" in
-                                "US") FLAG="🇺🇸" ;; "JP") FLAG="🇯🇵" ;; "HK") FLAG="🇭🇰" ;;
-                                "SG") FLAG="🇸🇬" ;; "UK"|"GB") FLAG="🇬🇧" ;; "DE") FLAG="🇩🇪" ;; "FR") FLAG="🇫🇷" ;;
-                                "CA") FLAG="🇨🇦" ;; "AU") FLAG="🇦🇺" ;; "KR") FLAG="🇰🇷" ;; "NL") FLAG="🇳🇱" ;;
-                                "BR") FLAG="🇧🇷" ;; "IN") FLAG="🇮🇳" ;; "TW") FLAG="🇹🇼" ;;
-                            esac
+                            FLAG=$(get_flag "$REGION_NAME")
                             BTNS="$BTNS[{\"text\":\"$FLAG $REGION_NAME ($NODE_COUNT 台)\",\"callback_data\":\"region:$REGION_NAME\"}],"
                         done <<< "$REGION_DATA"
                         BTNS="${BTNS%,}]"
