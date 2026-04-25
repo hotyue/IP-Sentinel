@@ -40,34 +40,19 @@ if [ ! -x "$PROBE_SCRIPT" ]; then
 fi
 
 # ==========================================
-# 🛑 [核心战术] 幽灵网卡劫持 v3 (Source 包装版)
-# 彻底免疫第三方脚本内部的 PATH 重置与子进程隔离！
+# 🛑 [终极战术] 源码物理变异 (Source Code Mutation)
+# 无视第三方脚本的 PATH 重置或绝对路径调用，直接对其底层代码进行物理清洗！
 # ==========================================
 if [ "$BIND_READY" == "true" ]; then
     TMP_PROBE="/tmp/ip_sentinel_probe_$$.sh"
-    # 构建高维外壳，注入拦截函数并吸入原版脚本
-    cat > "$TMP_PROBE" << EOF
-#!/bin/bash
-curl() {
-    if [[ "\$*" == *"localhost"* || "\$*" == *"127.0.0.1"* || "\$*" == *"api.ip.sb"* ]]; then
-        command curl "\$@"
-    else
-        command curl --interface "$RAW_BIND_IP" "\$@"
-    fi
-}
-wget() {
-    if [[ "\$*" == *"localhost"* || "\$*" == *"127.0.0.1"* ]]; then
-        command wget "\$@"
-    else
-        command wget --bind-address="$RAW_BIND_IP" "\$@"
-    fi
-}
-# 将第三方检测脚本拉入当前的函数作用域中执行
-source "$PROBE_SCRIPT" "\$@"
-EOF
-    chmod +x "$TMP_PROBE"
+    cp -f "$PROBE_SCRIPT" "$TMP_PROBE"
     
-    # 采用高维外壳执行，彻底封死出口
+    # [降维打击] 暴力替换代码文本中的网络请求指令，物理焊死出口网卡
+    # 匹配 "curl -" 防止误伤 "command -v curl" 的探针环境检测
+    sed -i "s/curl -/curl --interface ${RAW_BIND_IP} -/g" "$TMP_PROBE"
+    sed -i "s/wget -/wget --bind-address=${RAW_BIND_IP} -/g" "$TMP_PROBE"
+    
+    # 采用被我们物理洗脑后的变异源码执行探测
     RAW_OUTPUT=$(timeout 180 bash "$TMP_PROBE" "${PROBE_ARGS[@]}" 2>/dev/null)
     rm -f "$TMP_PROBE"
 else
