@@ -128,7 +128,7 @@ bash <(curl -sL https://raw.githubusercontent.com/hotyue/IP-Sentinel/legacy/core
 
 如果你想为项目增加新的节点区域（例如德国、英国、大洋洲等），或者提供更丰富的本土化搜索词库，非常欢迎提交 Pull Request！
 
----
+-
 
 - 感谢 @xykt 本项目IP质量检测采用[xykt/IPQuality](https://github.com/xykt/IPQuality) 脚本！
 
