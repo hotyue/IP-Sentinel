@@ -9,7 +9,7 @@ source /opt/ip_sentinel/config.conf
 # 1. 动态网络锚定与协议自适应 (专为多 IP / NAT 架构打造)
 # ==========================================
 DYNAMIC_IP_PREF="${IP_PREF:-4}"
-PROBE_ARGS=("-y" "-j") # 默认注入: 自动确认、JSON格式
+PROBE_ARGS=("-y" "-j" "-f") # 默认注入: 自动确认、JSON格式、明文无掩码IP
 
 # 强壮正则：支持 V4, V6 以及带有 [] 护甲的 V6 (兼容多 IP 站群机)
 if [[ -n "$BIND_IP" && "$BIND_IP" =~ ^[0-9a-fA-F:\[\]\.]+$ ]]; then
@@ -114,7 +114,6 @@ if [ -z "$IP_ADDR" ]; then
     exit 1
 fi
 
-[ -z "$IP_ADDR" ] && IP_ADDR="$PUBLIC_IP"
 ASN=$(echo "$JSON_DATA" | jq -r '.Info.ASN // "Unknown"' 2>/dev/null)
 ORG=$(echo "$JSON_DATA" | jq -r '.Info.Organization // "Unknown"' 2>/dev/null)
 CITY=$(echo "$JSON_DATA" | jq -r '.Info.City.Name // "Unknown"' 2>/dev/null)
