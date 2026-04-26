@@ -31,22 +31,28 @@ fi
 # 补齐协议版本参数 (-4 或 -6)
 PROBE_ARGS+=("-${DYNAMIC_IP_PREF}")
 
-# 2. 静默拉取原始数据 (智能双重容灾: 官方主干优先防 RCE，短链双栈兜底纯 V6)
+# 2. 智能拉取引擎 (官方主干优先防 RCE，双栈 CDN 保底，外加文件防伪强校验)
 PROBE_SCRIPT="/opt/ip_sentinel/core/ip_probe.sh"
 
-# [修复] 采用 -s 检查文件是否大于0字节，防止遗留 0 字节废弃文件
+# [校验 1] 验证本地残留脚本是否损坏 (防止之前被墙或拦截返回了 HTML 报错页)
+if ! grep -q "xykt" "$PROBE_SCRIPT" 2>/dev/null; then
+    rm -f "$PROBE_SCRIPT"
+fi
+
 if [ ! -s "$PROBE_SCRIPT" ]; then
-    # 🛡️ 首选防线: 从 GitHub 官方拉取，杜绝短链 RCE 劫持风险
+    # 🛡️ 首选防线: 严格遵守从 GitHub 官方主干拉取，捍卫纯净底线
     curl -sL -m 10 "https://raw.githubusercontent.com/xykt/IPQuality/main/ip.sh" -o "$PROBE_SCRIPT" 2>/dev/null
     
-    # 🚑 容灾防线: 如果拉取失败 (如纯 V6 机器无法解析 GitHub)，回退到 Cloudflare 双栈短链兜底
-    if [ ! -s "$PROBE_SCRIPT" ]; then
-        curl -sL -m 10 "https://IP.Check.Place" -o "$PROBE_SCRIPT" 2>/dev/null
+    # 🚑 文件防伪校验: 如果纯 V6 无法解析 GitHub 返回了 HTML 报错页，剔除它！
+    if ! grep -q "xykt" "$PROBE_SCRIPT" 2>/dev/null; then
+        rm -f "$PROBE_SCRIPT"
+        # 降级到双栈 CDN 节点兜底 (仅在 GitHub 彻底失效时启用)
+        curl -sL -m 15 "https://IP.Check.Place" -o "$PROBE_SCRIPT" 2>/dev/null
     fi
     chmod +x "$PROBE_SCRIPT" 2>/dev/null
 fi
 
-# 封装打靶与清洗逻辑为函数，便于后续容灾重试
+# 封装打靶与清洗逻辑为函数
 execute_probe() {
     RAW_OUTPUT=$(timeout 180 bash "$PROBE_SCRIPT" "$@" 2>/dev/null)
     JSON_DATA="{${RAW_OUTPUT#*\{}"
@@ -55,15 +61,22 @@ execute_probe() {
     IP_ADDR=$(echo "$JSON_DATA" | jq -r '.Head.IP // empty' 2>/dev/null)
 }
 
-# 🚀 首轮实弹打靶 (带有物理网卡 BIND_IP 枷锁)
+# 🚀 首轮实弹打靶 (严格遵守 BIND_IP 与动态协议配置)
 execute_probe "${PROBE_ARGS[@]}"
 
-# 🚑 [容灾防线] 剥离枷锁抢救机制
-# 如果打靶失败 (无 IP 回波)，且身上带着 -i 枷锁，极大概率是复杂路由 (如 WARP) 导致的死锁！
+# 🚑 容灾阶梯 1：剥离物理网卡枷锁
+# 针对多 IP 站群机，如果 -i 参数导致 WARP 等复杂路由死锁
 if [ -z "$IP_ADDR" ] && [[ "${PROBE_ARGS[*]}" == *"-i"* ]]; then
-    # 卸下 -i 物理枷锁，交由系统内核自主寻找最优路由，进行第二次抢救性探测
     FALLBACK_ARGS=("-y" "-j" "-${DYNAMIC_IP_PREF}")
     execute_probe "${FALLBACK_ARGS[@]}"
+fi
+
+# 🚑 容灾阶梯 2：终极裸跑抢救
+# 针对 EUSERV 这种极端机器，强加协议参数 (-4/-6) 可能反而导致探针内部测速路由瘫痪。
+# 彻底退化为最原始的无参状态，完全交由系统内核自主决断
+if [ -z "$IP_ADDR" ]; then
+    NAKED_ARGS=("-y" "-j")
+    execute_probe "${NAKED_ARGS[@]}"
 fi
 
 if [ -z "$IP_ADDR" ]; then
