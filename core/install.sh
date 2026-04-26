@@ -793,7 +793,24 @@ EOF
             
             nohup bash "${INSTALL_DIR}/core/agent_daemon.sh" >/dev/null 2>&1 &
         fi
+        
+        # 写入标准的 spool 目录
         [ -f /tmp/cron_backup ] && crontab /tmp/cron_backup 2>/dev/null
+        
+        # [极限修补] 针对 Alpine/Busybox 的路径割裂顽疾，双向强行同步配置
+        if [ -d "/etc/crontabs" ] && [ -f "/var/spool/cron/crontabs/root" ]; then
+            cp -f /var/spool/cron/crontabs/root /etc/crontabs/root 2>/dev/null || true
+            chmod 600 /etc/crontabs/root 2>/dev/null || true
+        fi
+        
+        # 强行唤醒/重启大管家，让它立刻重新读档
+        if command -v rc-service >/dev/null 2>&1; then
+            rc-service crond restart 2>/dev/null || crond -b 2>/dev/null
+        else
+            pkill -9 crond 2>/dev/null || true
+            crond -b 2>/dev/null || true
+        fi
+        
         rm -f /tmp/cron_backup
     fi
 
