@@ -182,8 +182,22 @@ pkill -9 -f "runner.sh" >/dev/null 2>&1 || true
 
 # 2. 清除系统定时任务 (Cron) 中的旧版条目 (安全容错版)
 crontab -l 2>/dev/null | grep -v "ip_sentinel" > /tmp/cron_clean || true
-[ -f /tmp/cron_clean ] && crontab /tmp/cron_clean 2>/dev/null
+# [追加 >/dev/null 2>&1 堵死 Alpine 的脏话输出]
+[ -f /tmp/cron_clean ] && crontab /tmp/cron_clean >/dev/null 2>&1
 rm -f /tmp/cron_clean
+
+# ==========================================
+# 🛑 [物理抹除] 彻底扫除 Alpine 系统的底层残留与双路径文件
+# ==========================================
+for CRON_FILE in "/var/spool/cron/crontabs/root" "/etc/crontabs/root"; do
+    if [ -f "$CRON_FILE" ]; then
+        grep -v "ip_sentinel" "$CRON_FILE" > "${CRON_FILE}.tmp" 2>/dev/null || true
+        cat "${CRON_FILE}.tmp" > "$CRON_FILE" 2>/dev/null || true
+        rm -f "${CRON_FILE}.tmp" 2>/dev/null
+    fi
+done
+# 清理 OpenRC 开机启动项
+rm -f /etc/local.d/ip_sentinel.start 2>/dev/null
 
 # 3. 抹除旧版核心代码，杜绝代码冲突 (根据模式分流)
 if [ "$UPGRADE_MODE" == "true" ]; then

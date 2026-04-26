@@ -61,11 +61,24 @@ pkill -9 -f "mod_trust.sh" >/dev/null 2>&1
 
 # 3. 清除系统定时任务 (Cron)
 echo "[3/4] 正在清理系统定时任务 (Cron)..."
-if crontab -l >/dev/null 2>&1; then
-    crontab -l | grep -v "ip_sentinel" > /tmp/cron_backup
-    crontab /tmp/cron_backup
-    rm -f /tmp/cron_backup
-fi
+crontab -l 2>/dev/null | grep -v "ip_sentinel" > /tmp/cron_clean || true
+# [追加 >/dev/null 2>&1 堵死 Alpine 的脏话输出]
+[ -f /tmp/cron_clean ] && crontab /tmp/cron_clean >/dev/null 2>&1
+
+# ==========================================
+# 🛑 [物理抹除] 彻底扫除 Alpine 系统的底层残留与双路径文件
+# ==========================================
+for CRON_FILE in "/var/spool/cron/crontabs/root" "/etc/crontabs/root"; do
+    if [ -f "$CRON_FILE" ]; then
+        grep -v "ip_sentinel" "$CRON_FILE" > "${CRON_FILE}.tmp" 2>/dev/null || true
+        cat "${CRON_FILE}.tmp" > "$CRON_FILE" 2>/dev/null || true
+        rm -f "${CRON_FILE}.tmp" 2>/dev/null
+    fi
+done
+# 清理 OpenRC 开机启动项
+rm -f /etc/local.d/ip_sentinel.start 2>/dev/null
+
+rm -f /tmp/cron_clean
 
 # 4. 删除所有文件、日志与临时缓存
 echo "[4/4] 正在抹除核心程序、配置文件与系统痕迹..."
