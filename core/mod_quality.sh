@@ -31,28 +31,40 @@ fi
 # 补齐协议版本参数 (-4 或 -6)
 PROBE_ARGS+=("-${DYNAMIC_IP_PREF}")
 
-# 2. 静默拉取原始数据 (消除短链接 RCE 劫持风险，收编为本地固化执行)
+# 2. 静默拉取原始数据 (智能双重容灾: 官方主干优先防 RCE，短链双栈兜底纯 V6)
 PROBE_SCRIPT="/opt/ip_sentinel/core/ip_probe.sh"
-if [ ! -x "$PROBE_SCRIPT" ]; then
-    # 若本地探针尚未就绪，直接从 GitHub 官方主干拉取底层源码，绕过未知域名
-    curl -sL "https://raw.githubusercontent.com/xykt/IPQuality/main/ip.sh" -o "$PROBE_SCRIPT" 2>/dev/null
+
+# [修复] 采用 -s 检查文件是否大于0字节，防止遗留 0 字节废弃文件
+if [ ! -s "$PROBE_SCRIPT" ]; then
+    # 🛡️ 首选防线: 从 GitHub 官方拉取，杜绝短链 RCE 劫持风险
+    curl -sL -m 10 "https://raw.githubusercontent.com/xykt/IPQuality/main/ip.sh" -o "$PROBE_SCRIPT" 2>/dev/null
+    
+    # 🚑 容灾防线: 如果拉取失败 (如纯 V6 机器无法解析 GitHub)，回退到 Cloudflare 双栈短链兜底
+    if [ ! -s "$PROBE_SCRIPT" ]; then
+        curl -sL -m 10 "https://IP.Check.Place" -o "$PROBE_SCRIPT" 2>/dev/null
+    fi
     chmod +x "$PROBE_SCRIPT" 2>/dev/null
 fi
 
-# 采用本地原生执行，拥抱底层路由的真实结果
-RAW_OUTPUT=$(timeout 180 bash "$PROBE_SCRIPT" "${PROBE_ARGS[@]}" 2>/dev/null)
+# 封装打靶与清洗逻辑为函数，便于后续容灾重试
+execute_probe() {
+    RAW_OUTPUT=$(timeout 180 bash "$PROBE_SCRIPT" "$@" 2>/dev/null)
+    JSON_DATA="{${RAW_OUTPUT#*\{}"
+    ESC=$(printf '\033')
+    JSON_DATA=$(printf "%s" "$JSON_DATA" | sed -e "s/${ESC}\[[0-9;]*[a-zA-Z]//g" -e "s/${ESC}[0-9;]*[a-zA-Z]//g" -e "s/x1b\\[[0-9;]*[a-zA-Z]//g" -e "s/x1b[0-9;]*[a-zA-Z]//g")
+    IP_ADDR=$(echo "$JSON_DATA" | jq -r '.Head.IP // empty' 2>/dev/null)
+}
 
-# 2. 极致截取 JSON (无视开头的赞助商广告与不可见字符，精准提取)
-JSON_DATA="{${RAW_OUTPUT#*\{}"
+# 🚀 首轮实弹打靶 (带有物理网卡 BIND_IP 枷锁)
+execute_probe "${PROBE_ARGS[@]}"
 
-# [v4.0.3 核心抢修: 强力去污粉] 专门针对 Alpine/Busybox 等轻量级环境！
-# 底层探测脚本的正则去色在 Alpine 上会失效，导致 ANSI 控制符混入 JSON。
-# 必须在此处彻底清洗真实的 ESC 字符与字面量 x1b，否则会导致 TG API 静默拒收！
-ESC=$(printf '\033')
-JSON_DATA=$(printf "%s" "$JSON_DATA" | sed -e "s/${ESC}\[[0-9;]*[a-zA-Z]//g" -e "s/${ESC}[0-9;]*[a-zA-Z]//g" -e "s/x1b\\[[0-9;]*[a-zA-Z]//g" -e "s/x1b[0-9;]*[a-zA-Z]//g")
-
-# 2. 提取基础物理定位与身份特征 (兼作合法性校验)
-IP_ADDR=$(echo "$JSON_DATA" | jq -r '.Head.IP // empty' 2>/dev/null)
+# 🚑 [容灾防线] 剥离枷锁抢救机制
+# 如果打靶失败 (无 IP 回波)，且身上带着 -i 枷锁，极大概率是复杂路由 (如 WARP) 导致的死锁！
+if [ -z "$IP_ADDR" ] && [[ "${PROBE_ARGS[*]}" == *"-i"* ]]; then
+    # 卸下 -i 物理枷锁，交由系统内核自主寻找最优路由，进行第二次抢救性探测
+    FALLBACK_ARGS=("-y" "-j" "-f" "-${DYNAMIC_IP_PREF}")
+    execute_probe "${FALLBACK_ARGS[@]}"
+fi
 
 if [ -z "$IP_ADDR" ]; then
     curl -s -X POST "${TG_API_URL}" \
