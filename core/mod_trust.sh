@@ -45,7 +45,8 @@ fi
 log_msg() {
     local TYPE=$1
     local MSG=$2
-    local TIME=$(date "+%Y-%m-%d %H:%M:%S")
+    # [时区对齐] 强制无视本地时区，以绝对 UTC 时间生成日志时间戳
+    local TIME=$(date -u "+%Y-%m-%d %H:%M:%S UTC")
     # [v3.4.0 核心] 提取当前配置中的版本锚点
     local local_ver="${AGENT_VERSION:-未知}"
     

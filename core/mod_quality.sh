@@ -190,7 +190,8 @@ fi
 # 7. 组装情报级 Markdown 战报
 # 提取本地运行态版本与生成时间戳
 LOCAL_VER="${AGENT_VERSION:-未知}"
-CURRENT_TIME=$(date "+%Y-%m-%d %H:%M:%S")
+# [时区对齐] 深海声呐战报落款强制采用绝对 UTC 时间
+CURRENT_TIME=$(date -u "+%Y-%m-%d %H:%M:%S UTC")
 # [体验修复] 探针返回的 IP 带有星号掩码，强制使用中枢下发的真实 IP 拼接，以防直达链接失效！
 LINK_IP=$(echo "$PUBLIC_IP" | tr -d '[]')
 
