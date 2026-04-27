@@ -30,7 +30,8 @@ log() {
 
     # 日志格式注入 [版本号] 追踪标识
     local core_msg=$(printf "[v%-5s] [%-5s] [%-7s] [%s] %s" "$local_ver" "$2" "$1" "$REGION_CODE" "$3")
-    echo "[$(date '+%Y-%m-%d %H:%M:%S')] $core_msg" >> "$LOG_FILE"
+    # [时区对齐] 强制无视本地时区，以绝对 UTC 时间写入日志
+    echo "[$(date -u '+%Y-%m-%d %H:%M:%S UTC')] $core_msg" >> "$LOG_FILE"
 
     # 强制推送到 Systemd Journal (如果系统支持)
     if command -v logger >/dev/null 2>&1; then
