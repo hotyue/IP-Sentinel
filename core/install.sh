@@ -14,10 +14,14 @@ if [ "$EUID" -ne 0 ]; then
   exit 1
 fi
 
+# 🟢 [防劫持沙盒] 创建具备随机哈希且仅 root 可见的专属安全工作区
+SECURE_TMP=$(mktemp -d /tmp/ips_install.XXXXXX)
+# 确保脚本退出、异常中断或被强杀时，自动销毁沙盒，不留痕迹
+trap 'rm -rf "$SECURE_TMP"' EXIT HUP INT QUIT TERM
+
 # 你的 GitHub 仓库 Raw 数据直链前缀
 REPO_RAW_URL="https://raw.githubusercontent.com/hotyue/IP-Sentinel/main"
-# 临时改为开发地址用于测试
-# REPO_RAW_URL="https://raw.githubusercontent.com/hotyue/IP-Sentinel/v3.6.2-rc"
+
 INSTALL_DIR="/opt/ip_sentinel"
 CONFIG_FILE="${INSTALL_DIR}/config.conf"
 
@@ -110,9 +114,8 @@ echo -e "\033[32m✅ 基础环境检测通过。\033[0m"
 
 # 2. 交互式引导与动态地图解析 (v3.0 全球网络)
 echo -e "\n[2/7] 正在连线云端，拉取全球节点地图..."
-curl -sL "${REPO_RAW_URL}/data/map.json" -o "/tmp/map.json"
-
-if [ ! -s "/tmp/map.json" ]; then
+curl -sL "${REPO_RAW_URL}/data/map.json" -o "${SECURE_TMP}/map.json"
+if [ ! -s "${SECURE_TMP}/map.json" ]; then
     echo -e "\033[31m❌ 拉取全球地图失败！请检查网络或 GitHub 仓库地址。\033[0m"
     exit 1
 fi
@@ -137,10 +140,10 @@ else
 
     if [ "$ACTION_CHOICE" == "2" ]; then
         echo -e "\n⏳ 正在拉取卸载程序..."
-        curl -sL "${REPO_RAW_URL}/core/uninstall.sh" -o "/tmp/ip_uninstall.sh"
-        chmod +x "/tmp/ip_uninstall.sh"
-        bash "/tmp/ip_uninstall.sh"
-        rm -f "/tmp/ip_uninstall.sh"
+        curl -sL "${REPO_RAW_URL}/core/uninstall.sh" -o "${SECURE_TMP}/ip_uninstall.sh"
+        chmod +x "${SECURE_TMP}/ip_uninstall.sh"
+        bash "${SECURE_TMP}/ip_uninstall.sh"
+        rm -f "${SECURE_TMP}/ip_uninstall.sh"
         exit 0
     fi
 
@@ -172,10 +175,10 @@ fi
 echo -e "\n⏳ 正在清理系统定时任务中的旧版条目..."
 
 # 1. 清除系统定时任务 (Cron) 中的旧版条目 (安全容错版)
-crontab -l 2>/dev/null | grep -v "ip_sentinel" > /tmp/cron_clean || true
+crontab -l 2>/dev/null | grep -v "ip_sentinel" > "${SECURE_TMP}/cron_clean" || true
 # [追加 >/dev/null 2>&1 堵死 Alpine 的脏话输出]
-[ -f /tmp/cron_clean ] && crontab /tmp/cron_clean >/dev/null 2>&1
-rm -f /tmp/cron_clean
+[ -f "${SECURE_TMP}/cron_clean" ] && crontab "${SECURE_TMP}/cron_clean" >/dev/null 2>&1
+rm -f "${SECURE_TMP}/cron_clean"
 
 # ==========================================
 # 🛑 [物理抹除] 彻底扫除 Alpine 系统的底层残留与双路径文件
@@ -215,13 +218,13 @@ if [ "$UPGRADE_MODE" == "false" ]; then
 
     # 📍 动态零级菜单：战区(大洲)选择
     echo -e "\n\033[36m📍 【第零级】请选择目标战区 (Continent):\033[0m"
-    jq -r '.continents[] | "\(.id)|\(.name)"' /tmp/map.json > /tmp/continents.txt
+    jq -r '.continents[] | "\(.id)|\(.name)"' "${SECURE_TMP}/map.json" > "${SECURE_TMP}/continents.txt"
     i=1; CONT_MAP=()
     while IFS="|" read -r cont_id cont_name; do
         echo "  $i) $cont_name"
         CONT_MAP[$i]="$cont_id"
         ((i++))
-    done < /tmp/continents.txt
+    done < "${SECURE_TMP}/continents.txt"
 
     read -p "请输入选择 [1-$((i-1))] (默认1): " CONT_SEL
     CONT_SEL=${CONT_SEL:-1}
@@ -229,14 +232,14 @@ if [ "$UPGRADE_MODE" == "false" ]; then
 
     # 📍 动态一级菜单：国家选择 (基于选中战区)
     echo -e "\n\033[36m📍 【第一级】正在检索 [$CONT_ID] 战区下的国家/地区...\033[0m"
-    jq -r ".continents[] | select(.id==\"$CONT_ID\") | .countries[] | \"\(.id)|\(.name)|\(.keyword_file)\"" /tmp/map.json > /tmp/countries.txt
+    jq -r ".continents[] | select(.id==\"$CONT_ID\") | .countries[] | \"\(.id)|\(.name)|\(.keyword_file)\"" "${SECURE_TMP}/map.json" > "${SECURE_TMP}/countries.txt"
     i=1; COUNTRY_MAP=(); KEYWORD_MAP=()
     while IFS="|" read -r c_id c_name k_file; do
         echo "  $i) $c_name"
         COUNTRY_MAP[$i]="$c_id"
         KEYWORD_MAP[$i]="$k_file"
         ((i++))
-    done < /tmp/countries.txt
+    done < "${SECURE_TMP}/countries.txt"
 
     read -p "请输入选择 [1-$((i-1))] (默认1): " C_SEL
     C_SEL=${C_SEL:-1}
@@ -246,11 +249,11 @@ if [ "$UPGRADE_MODE" == "false" ]; then
 
     # 📍 动态二级菜单：省/州选择 (基于选中战区和国家)
     echo -e "\n\033[36m📍 【第二级】正在检索 [$COUNTRY_ID] 的行政区数据...\033[0m"
-    jq -r ".continents[] | select(.id==\"$CONT_ID\") | .countries[] | select(.id==\"$COUNTRY_ID\") | .states[] | \"\(.id)|\(.name)\"" /tmp/map.json > /tmp/states.txt
-    STATE_COUNT=$(wc -l < /tmp/states.txt)
+    jq -r ".continents[] | select(.id==\"$CONT_ID\") | .countries[] | select(.id==\"$COUNTRY_ID\") | .states[] | \"\(.id)|\(.name)\"" "${SECURE_TMP}/map.json" > "${SECURE_TMP}/states.txt"
+    STATE_COUNT=$(wc -l < "${SECURE_TMP}/states.txt")
 
     if [ "$STATE_COUNT" -eq 1 ]; then
-        IFS="|" read -r STATE_ID STATE_NAME < /tmp/states.txt
+        IFS="|" read -r STATE_ID STATE_NAME < "${SECURE_TMP}/states.txt"
         echo -e "\033[32m💡 该国家下仅有单一配置 [$STATE_NAME]，已自动跃迁。\033[0m"
     else
         i=1; STATE_MAP=()
@@ -258,7 +261,7 @@ if [ "$UPGRADE_MODE" == "false" ]; then
             echo "  $i) $s_name"
             STATE_MAP[$i]="$s_id"
             ((i++))
-        done < /tmp/states.txt
+        done < "${SECURE_TMP}/states.txt"
         read -p "请输入选择 [1-$((i-1))] (默认1): " S_SEL
         S_SEL=${S_SEL:-1}
         STATE_ID="${STATE_MAP[$S_SEL]}"
@@ -266,11 +269,11 @@ if [ "$UPGRADE_MODE" == "false" ]; then
 
     # 📍 动态三级菜单：城市选择 (基于战区、国家、州三层过滤)
     echo -e "\n\033[36m📍 【第三级】请锁定具体城市节点:\033[0m"
-    jq -r ".continents[] | select(.id==\"$CONT_ID\") | .countries[] | select(.id==\"$COUNTRY_ID\") | .states[] | select(.id==\"$STATE_ID\") | .cities[] | \"\(.id)|\(.name)\"" /tmp/map.json > /tmp/cities.txt
-    CITY_COUNT=$(wc -l < /tmp/cities.txt)
+    jq -r ".continents[] | select(.id==\"$CONT_ID\") | .countries[] | select(.id==\"$COUNTRY_ID\") | .states[] | select(.id==\"$STATE_ID\") | .cities[] | \"\(.id)|\(.name)\"" "${SECURE_TMP}/map.json" > "${SECURE_TMP}/cities.txt"
+    CITY_COUNT=$(wc -l < "${SECURE_TMP}/cities.txt")
 
     if [ "$CITY_COUNT" -eq 1 ]; then
-        IFS="|" read -r CITY_ID CITY_NAME < /tmp/cities.txt
+        IFS="|" read -r CITY_ID CITY_NAME < "${SECURE_TMP}/cities.txt"
         echo -e "\033[32m💡 该区域下仅有单一城市 [$CITY_NAME]，已自动锁定。\033[0m"
     else
         i=1; CITY_MAP=(); CITY_NAME_MAP=()
@@ -279,7 +282,7 @@ if [ "$UPGRADE_MODE" == "false" ]; then
             CITY_MAP[$i]="$c_id"
             CITY_NAME_MAP[$i]="$c_name"
             ((i++))
-        done < /tmp/cities.txt
+        done < "${SECURE_TMP}/cities.txt"
         read -p "请输入选择 [1-$((i-1))] (默认1): " CI_SEL
         CI_SEL=${CI_SEL:-1}
         CITY_ID="${CITY_MAP[$CI_SEL]}"
@@ -287,7 +290,7 @@ if [ "$UPGRADE_MODE" == "false" ]; then
     fi
 
     # 清理临时文件 (增加清理 continents.txt)
-    rm -f /tmp/map.json /tmp/continents.txt /tmp/countries.txt /tmp/states.txt /tmp/cities.txt
+    rm -f "${SECURE_TMP}/map.json" "${SECURE_TMP}/continents.txt" "${SECURE_TMP}/countries.txt" "${SECURE_TMP}/states.txt" "${SECURE_TMP}/cities.txt"
 
     # 本地工作目录初始化 (支持 v3.0 的深度层级)
     mkdir -p "${INSTALL_DIR}/core"
@@ -327,11 +330,12 @@ if [ "$UPGRADE_MODE" == "false" ]; then
             # [v3.6.0 优化] 使用 OSC 8 终端超链接协议，实现“点击即打开”的极客交互
             echo -e "\n\033[36m📘 私有 Bot 创建教程: \033[4m\033]8;;https://blog.iot-architect.com/engineering-practice/create-private-telegram-bot-via-botfather/\033\\👉 [点击此处直接在浏览器中打开] 👈\033]8;;\033\\\033[0m"
             echo -e "\033[90m   (若您的终端较老不支持点击，请手动复制: https://blog.iot-architect.com/engineering-practice/create-private-telegram-bot-via-botfather/ )\033[0m"
-            read -p "请输入您的私有 Telegram Bot Token: " USER_TOKEN
-            
+            read -p "请输入您的私有 Telegram Bot Token: " RAW_TOKEN
+            USER_TOKEN=$(echo "$RAW_TOKEN" | tr -cd 'a-zA-Z0-9_:-')
             # 🛡️ 核心防误触修复：拦截空回车或粘贴换行导致的跳过 Bug
             while [ -z "$USER_TOKEN" ]; do
-                read -p "⚠️ Token 不能为空，请重新输入您的 Bot Token: " USER_TOKEN
+                read -p "⚠️ Token 不能为空或包含非法字符，请重新输入: " RAW_TOKEN
+                USER_TOKEN=$(echo "$RAW_TOKEN" | tr -cd 'a-zA-Z0-9_:-')
             done
             
             TG_TOKEN="$USER_TOKEN"
@@ -354,7 +358,9 @@ if [ "$UPGRADE_MODE" == "false" ]; then
         echo -e "\n\033[33m💡 提示：如果您不知道下方自己的 Chat ID 是什么，可以关注 @userinfobot 获取。\033[0m"
         echo -e "\033[36m📘 查看图文教程: \033[4m\033]8;;https://blog.iot-architect.com/engineering-practice/get-telegram-personal-id-via-userinfobot/\033\\👉 [点击此处直接在浏览器中打开] 👈\033]8;;\033\\\033[0m"
         echo -e "\033[90m   (若您的终端较老不支持点击，请手动复制: https://blog.iot-architect.com/engineering-practice/get-telegram-personal-id-via-userinfobot/ )\033[0m"
-        read -p "请输入你的 Chat ID (必须准确，否则无法联控): " CHAT_ID
+        read -p "请输入你的 Chat ID (必须准确，否则无法联控): " RAW_CHAT_ID
+        # 强制只保留数字和负号，封死注入
+        CHAT_ID=$(echo "$RAW_CHAT_ID" | tr -cd '0-9-')
         
         # ================== [v3.0.3 变更: 智能随机高位端口生成系统] ==================
         echo -e "\n\033[36m[4.2/7] 正在构建 Webhook 安全通信隧道...\033[0m"
@@ -412,7 +418,8 @@ if [ "$UPGRADE_MODE" == "false" ]; then
 
     if [ ${#IP_OPTIONS[@]} -eq 0 ]; then
         echo -e "\033[33m⚠️ 雷达受阻：未能自动探测到公网 IP，请手动指定。\033[0m"
-        read -p "请输入您要绑定的公网 IP (v4 或 v6): " PUBLIC_IP
+        read -p "请输入您要绑定的公网 IP (v4 或 v6): " RAW_PUBLIC_IP
+        PUBLIC_IP=$(echo "$RAW_PUBLIC_IP" | tr -cd 'a-fA-F0-9.:[]')
         [[ "$PUBLIC_IP" == *":"* ]] && IP_PREF="6" || IP_PREF="4"
     else
         echo "📍 发现可用出口 IP，请选择要注册与养护的锚点:"
@@ -621,7 +628,7 @@ echo -e "\n[6/7] 正在部署核心引擎与热数据..."
 mkdir -p "${INSTALL_DIR}/data/keywords"
 
 # [核心修复] 开辟临时下载区，确保下载 100% 成功后再替换旧核心
-TMP_CORE="/tmp/ip_sentinel_core_$$"
+TMP_CORE="${SECURE_TMP}/core_update"
 mkdir -p "$TMP_CORE"
 
 # 拉取核心代码至临时区
@@ -816,9 +823,9 @@ EOF
             rc-update del crond default >/dev/null 2>&1 || true
             rc-service crond stop >/dev/null 2>&1 || true
             pkill -9 crond >/dev/null 2>&1 || true
-            crontab -l 2>/dev/null | grep -v "ip_sentinel" > /tmp/cron_clean || true
-            [ -f /tmp/cron_clean ] && crontab /tmp/cron_clean >/dev/null 2>&1
-            rm -f /tmp/cron_clean
+            crontab -l 2>/dev/null | grep -v "ip_sentinel" > "${SECURE_TMP}/cron_clean" || true
+            [ -f "${SECURE_TMP}/cron_clean" ] && crontab "${SECURE_TMP}/cron_clean" >/dev/null 2>&1
+            rm -f "${SECURE_TMP}/cron_clean"
 
             # 2. 写入我们的死循环守护进程
             # [极客修复] 将 << 'EOF' 变为 << EOF，以允许在安装时将部署时刻的 DEPLOY_UTC 变量作为硬编码注入脚本中
@@ -866,15 +873,15 @@ EOF
             # ==========================================
             # 🟢 走常规调度路线 (正常的 Linux 或 KVM 型 Alpine)
             # ==========================================
-            crontab -l 2>/dev/null | grep -v "ip_sentinel" > /tmp/cron_backup || true
+            crontab -l 2>/dev/null | grep -v "ip_sentinel" > "${SECURE_TMP}/cron_backup" || true
             # [频率优化] 调整为 */20
-            echo "*/20 * * * * ${INSTALL_DIR}/core/runner.sh >/dev/null 2>&1" >> /tmp/cron_backup
+            echo "*/20 * * * * ${INSTALL_DIR}/core/runner.sh >/dev/null 2>&1" >> "${SECURE_TMP}/cron_backup"
             # [绝对 UTC 锚点] 每天精确在部署的 UTC 时刻触发
-            echo "${DEPLOY_UTC_MIN} ${DEPLOY_UTC_HOUR} * * * ${INSTALL_DIR}/core/updater.sh >/dev/null 2>&1" >> /tmp/cron_backup
+            echo "${DEPLOY_UTC_MIN} ${DEPLOY_UTC_HOUR} * * * ${INSTALL_DIR}/core/updater.sh >/dev/null 2>&1" >> "${SECURE_TMP}/cron_backup"
             
             if [[ -n "$TG_TOKEN" ]] && [[ -n "$CHAT_ID" ]]; then
                 # [绝对 UTC 锚点] 统一 UTC 16:00
-                echo "0 16 * * * ${INSTALL_DIR}/core/tg_report.sh >/dev/null 2>&1" >> /tmp/cron_backup
+                echo "0 16 * * * ${INSTALL_DIR}/core/tg_report.sh >/dev/null 2>&1" >> "${SECURE_TMP}/cron_backup"
                 echo "$SAFE_PUBLIC_IP" > "${INSTALL_DIR}/core/.last_ip"
                 # [修复竞态]: 提前写入公网 IP 缓存，阻断重复推送
                 # 强制使用无参数 curl 裸奔探测，对齐 agent_daemon 的认知，防止双栈机型 IPv4/v6 认知错乱导致重启误报
@@ -886,15 +893,15 @@ EOF
                     chmod +x /etc/local.d/ip_sentinel.start
                     rc-update add local default >/dev/null 2>&1
                 else
-                    echo "@reboot nohup bash ${INSTALL_DIR}/core/agent_daemon.sh >/dev/null 2>&1 &" >> /tmp/cron_backup
+                    echo "@reboot nohup bash ${INSTALL_DIR}/core/agent_daemon.sh >/dev/null 2>&1 &" >> "${SECURE_TMP}/cron_backup"
                 fi
                 
-                echo "* * * * * pgrep -f 'webhook.py' >/dev/null || nohup bash ${INSTALL_DIR}/core/agent_daemon.sh >/dev/null 2>&1 &" >> /tmp/cron_backup
+                echo "* * * * * pgrep -f 'webhook.py' >/dev/null || nohup bash ${INSTALL_DIR}/core/agent_daemon.sh >/dev/null 2>&1 &" >> "${SECURE_TMP}/cron_backup"
                 
                 nohup bash "${INSTALL_DIR}/core/agent_daemon.sh" >/dev/null 2>&1 &
             fi
             
-            [ -f /tmp/cron_backup ] && crontab /tmp/cron_backup >/dev/null 2>&1
+            [ -f "${SECURE_TMP}/cron_backup" ] && crontab "${SECURE_TMP}/cron_backup" >/dev/null 2>&1
             
             if [ -d "/etc/crontabs" ] && [ -f "/var/spool/cron/crontabs/root" ]; then
                 cp -f /var/spool/cron/crontabs/root /etc/crontabs/root 2>/dev/null || true
@@ -908,7 +915,7 @@ EOF
                 crond -b >/dev/null 2>&1 || true
             fi
             
-            rm -f /tmp/cron_backup
+            rm -f "${SECURE_TMP}/cron_backup"
         fi
     fi
 

@@ -64,9 +64,8 @@ pkill -9 -f "sentinel_scheduler.sh" >/dev/null 2>&1
 
 # 3. 清除系统定时任务 (Cron)
 echo "[3/4] 正在清理系统定时任务 (Cron)..."
-crontab -l 2>/dev/null | grep -v "ip_sentinel" > /tmp/cron_clean || true
-# [追加 >/dev/null 2>&1 堵死 Alpine 的脏话输出]
-[ -f /tmp/cron_clean ] && crontab /tmp/cron_clean >/dev/null 2>&1
+# [终极安全防御] 直接使用管道流过滤并覆盖，不产生任何 /tmp 落地文件，杜绝劫持提权
+crontab -l 2>/dev/null | grep -v "ip_sentinel" | crontab - >/dev/null 2>&1 || true
 
 # ==========================================
 # 🛑 [物理抹除] 彻底扫除 Alpine 系统的底层残留与双路径文件
@@ -87,17 +86,11 @@ if grep -q "sentinel_scheduler.sh" /etc/profile 2>/dev/null; then
     sed -i '/sentinel_scheduler\.sh/d' /etc/profile 2>/dev/null || true
 fi
 
-rm -f /tmp/cron_clean
-
 # 4. 删除所有文件、日志与临时缓存
 echo "[4/4] 正在抹除核心程序、配置文件与系统痕迹..."
 if [ -d "$INSTALL_DIR" ]; then
     rm -rf "$INSTALL_DIR"
 fi
-
-# 拔除 /tmp 目录下的所有更新下载临时文件和 V1/V2 遗留的偏移量记录
-rm -f /tmp/ip_sentinel_*.txt
-rm -f /tmp/ip_sentinel_*.json
 
 echo "========================================================"
 echo "✅ 卸载彻底完成！IP-Sentinel 已从您的系统中无痕移除。"
