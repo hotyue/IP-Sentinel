@@ -227,21 +227,28 @@ fi
 
 # 核心 2: YouTube Premium 探测
 YT_PR_GL=""
-YT_PR_HTML=$(curl $CURL_BIND_OPT $DYNAMIC_IP_PREF -m 10 -s -L "https://www.youtube.com/premium")
+# [修复] 必须带上本轮循环的专属 UA (-A "$SESSION_UA")，防止被 Google CDN 丢进无状态爬虫兜底页
+YT_PR_HTML=$(curl $CURL_BIND_OPT $DYNAMIC_IP_PREF -m 10 -s -L -A "$SESSION_UA" "https://www.youtube.com/premium")
 if echo "$YT_PR_HTML" | grep -q 'www.google.cn'; then
     YT_PR_GL="CN"
 else
+    # 穷举风控变量提取
     YT_PR_GL=$(echo "$YT_PR_HTML" | grep -o '"contentRegion":"[A-Za-z]\{2\}"' | head -n 1 | cut -d'"' -f4 | tr 'a-z' 'A-Z')
     [ -z "$YT_PR_GL" ] && YT_PR_GL=$(echo "$YT_PR_HTML" | grep -o '"countryCode":"[A-Za-z]\{2\}"' | head -n 1 | cut -d'"' -f4 | tr 'a-z' 'A-Z')
+    [ -z "$YT_PR_GL" ] && YT_PR_GL=$(echo "$YT_PR_HTML" | grep -o '"INNERTUBE_CONTEXT_GL":"[A-Za-z]\{2\}"' | head -n 1 | cut -d'"' -f4 | tr 'a-z' 'A-Z')
 fi
 
 # 核心 3: YouTube Music 探测
 YT_MU_GL=""
-YT_MU_HTML=$(curl $CURL_BIND_OPT $DYNAMIC_IP_PREF -m 10 -s -L "https://music.youtube.com/")
+# [修复] 同样加持 UA 装甲，强行唤出完整版前端框架
+YT_MU_HTML=$(curl $CURL_BIND_OPT $DYNAMIC_IP_PREF -m 10 -s -L -A "$SESSION_UA" "https://music.youtube.com/")
 if echo "$YT_MU_HTML" | grep -q 'www.google.cn'; then
     YT_MU_GL="CN"
 else
-    YT_MU_GL=$(echo "$YT_MU_HTML" | grep -o '"GL":"[A-Za-z]\{2\}"' | head -n 1 | cut -d'"' -f4 | tr 'a-z' 'A-Z')
+    # [修复] Music 的核心配置变量是 INNERTUBE_CONTEXT_GL
+    YT_MU_GL=$(echo "$YT_MU_HTML" | grep -o '"INNERTUBE_CONTEXT_GL":"[A-Za-z]\{2\}"' | head -n 1 | cut -d'"' -f4 | tr 'a-z' 'A-Z')
+    [ -z "$YT_MU_GL" ] && YT_MU_GL=$(echo "$YT_MU_HTML" | grep -o '"countryCode":"[A-Za-z]\{2\}"' | head -n 1 | cut -d'"' -f4 | tr 'a-z' 'A-Z')
+    [ -z "$YT_MU_GL" ] && YT_MU_GL=$(echo "$YT_MU_HTML" | grep -o '"GL":"[A-Za-z]\{2\}"' | head -n 1 | cut -d'"' -f4 | tr 'a-z' 'A-Z')
 fi
 
 # [基准对齐] 提取配置大区 (兼容州级穿透)，并修正英国的 ISO 代码
