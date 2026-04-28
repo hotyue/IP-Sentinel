@@ -183,8 +183,12 @@ YT_PR_HTML=$(curl $CURL_BIND_OPT $DYNAMIC_IP_PREF -m 10 -s -L "https://www.youtu
 YT_PR_GL=$(echo "$YT_PR_HTML" | grep -o '"countryCode":"[^"]*"' | head -n 1 | cut -d'"' -f4 | tr 'a-z' 'A-Z')
 
 # 核心 2: YouTube Music 独立版权风控探测
+# [修复] music 子域的前端框架无 countryCode 字段，且其 CDN 不存在主站的缓存污染，安全复用 GL 提取
 YT_MU_HTML=$(curl $CURL_BIND_OPT $DYNAMIC_IP_PREF -m 10 -s -L "https://music.youtube.com/")
-YT_MU_GL=$(echo "$YT_MU_HTML" | grep -o '"countryCode":"[^"]*"' | head -n 1 | cut -d'"' -f4 | tr 'a-z' 'A-Z')
+YT_MU_GL=$(echo "$YT_MU_HTML" | grep -o '"GL":"[A-Za-z]\{2\}"' | head -n 1 | cut -d'"' -f4 | tr 'a-z' 'A-Z')
+
+# [同步加固] 强化 Premium 探针的正则，防止匹配到冗余的非法长字符
+YT_PR_GL=$(echo "$YT_PR_HTML" | grep -o '"countryCode":"[A-Za-z]\{2\}"' | head -n 1 | cut -d'"' -f4 | tr 'a-z' 'A-Z')
 
 # 综合判定逻辑：优先信任 Premium，Music 作为辅助
 REAL_REGION="${YT_PR_GL:-$YT_MU_GL}"
