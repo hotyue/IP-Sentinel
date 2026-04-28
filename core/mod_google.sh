@@ -171,67 +171,112 @@ for ((i=1; i<=TOTAL_ACTIONS; i++)); do
     fi
 done
 
-# --- [结果纠偏自检 (V4.0.6 三核综合雷达版: URL跳转 + Premium + Music)] ---
+# --- [结果纠偏自检 (V4.0.9 终极三核雷达: URL跳转 + Premium + Music)] ---
 # 战术揭秘：汲取开源社区顶级探针的精髓！
-# 1. URL 传统跳转探测：探测 Google 原生域名的 301/302 重定向。
+# 1. 传统 URL 跳转探测：捕捉 www.google.com 底层 302 重定向域名的真实归属。
 # 2. YT Premium 深度探测：提取核心 contentRegion 变量，并强匹配 www.google.cn 送中特征。
+# 3. 严格一致性校验：任何一端出现非预期偏移，立即判定为漂移，彻底消除虚假“成功”。
 
 log "$MODULE_NAME" "INFO " "启动三核交叉验证 (URL跳转 + YT Premium + YT Music) 穿透获取 GeoIP..."
 
-# 核心 1: 传统 URL 跳转探测 (捕捉底层重定向)
-JUMP_HDR=$(curl $CURL_BIND_OPT $DYNAMIC_IP_PREF -m 10 -sI "http://google.com/")
+# 核心 1: 传统 URL 跳转探测 (请求 www 才能触发准确跳转)
+JUMP_HDR=$(curl $CURL_BIND_OPT $DYNAMIC_IP_PREF -m 10 -sI "http://www.google.com/")
 JUMP_LOC=$(echo "$JUMP_HDR" | grep -i "^location:" | tr -d '\r\n')
 JUMP_GL=""
-if [[ "$JUMP_LOC" == *".google.cn"* ]] || [[ "$JUMP_LOC" == *"gl=CN"* ]]; then
+
+if [ -z "$JUMP_LOC" ]; then
+    # 无跳转 (HTTP 200) 通常意味着原生被定位于 US
+    JUMP_GL="US"
+elif [[ "$JUMP_LOC" == *".google.cn"* ]] || [[ "$JUMP_LOC" == *"gl=CN"* ]]; then
     JUMP_GL="CN"
 elif [[ "$JUMP_LOC" == *"gl="* ]]; then
     JUMP_GL=$(echo "$JUMP_LOC" | grep -o 'gl=[A-Za-z]\{2\}' | head -n 1 | cut -d'=' -f2 | tr 'a-z' 'A-Z')
 else
-    # 尝试从后缀提取 (如 .co.jp -> JP, .com.hk -> HK, .de -> DE)
-    JUMP_EXT=$(echo "$JUMP_LOC" | awk -F'.google.' '{print $2}' | cut -d'/' -f1 | tr 'a-z' 'A-Z')
-    if [[ "$JUMP_EXT" == *"CN"* ]]; then JUMP_GL="CN"
-    elif [[ "$JUMP_EXT" == *"HK"* ]]; then JUMP_GL="HK"
-    elif [[ "$JUMP_EXT" == *"TW"* ]]; then JUMP_GL="TW"
-    elif [[ "$JUMP_EXT" == *"JP"* ]]; then JUMP_GL="JP"
-    elif [[ "$JUMP_EXT" == *"UK"* || "$JUMP_EXT" == *"GB"* ]]; then JUMP_GL="GB"
-    elif [[ "$JUMP_EXT" == "COM" ]]; then JUMP_GL="US"
-    else JUMP_GL=$(echo "$JUMP_EXT" | awk -F'.' '{print $NF}')
-    fi
+    # 从域名中提取区域后缀 (如 .co.jp -> JP, .com.hk -> HK, .de -> DE)
+    JUMP_DOMAIN=$(echo "$JUMP_LOC" | grep -o 'google\.[a-z\.]*' | head -n 1 | sed 's/google\.//')
+    case "$JUMP_DOMAIN" in
+        "com") JUMP_GL="US" ;;
+        "com.hk") JUMP_GL="HK" ;;
+        "com.tw") JUMP_GL="TW" ;;
+        "co.jp") JUMP_GL="JP" ;;
+        "co.uk") JUMP_GL="GB" ;;
+        "co.kr") JUMP_GL="KR" ;;
+        "co.in") JUMP_GL="IN" ;;
+        "co.id") JUMP_GL="ID" ;;
+        "co.th") JUMP_GL="TH" ;;
+        "com.sg") JUMP_GL="SG" ;;
+        "com.my") JUMP_GL="MY" ;;
+        "com.au") JUMP_GL="AU" ;;
+        "com.br") JUMP_GL="BR" ;;
+        "com.mx") JUMP_GL="MX" ;;
+        "com.ar") JUMP_GL="AR" ;;
+        "co.za") JUMP_GL="ZA" ;;
+        "cn") JUMP_GL="CN" ;;
+        "") JUMP_GL="" ;;
+        *) 
+            # 提取标准两字母后缀 (.de, .fr, .nl)
+            LAST_EXT=$(echo "$JUMP_DOMAIN" | awk -F'.' '{print $NF}' | tr 'a-z' 'A-Z')
+            if [ ${#LAST_EXT} -eq 2 ]; then
+                JUMP_GL="$LAST_EXT"
+            else
+                JUMP_GL="US"
+            fi
+            ;;
+    esac
 fi
 
-# 核心 2: YouTube Premium 探测 (结合深海声呐的 contentRegion 与强匹配逻辑)
+# 核心 2: YouTube Premium 探测
 YT_PR_GL=""
 YT_PR_HTML=$(curl $CURL_BIND_OPT $DYNAMIC_IP_PREF -m 10 -s -L "https://www.youtube.com/premium")
 if echo "$YT_PR_HTML" | grep -q 'www.google.cn'; then
     YT_PR_GL="CN"
 else
     YT_PR_GL=$(echo "$YT_PR_HTML" | grep -o '"contentRegion":"[A-Za-z]\{2\}"' | head -n 1 | cut -d'"' -f4 | tr 'a-z' 'A-Z')
-    # 容灾兜底
     [ -z "$YT_PR_GL" ] && YT_PR_GL=$(echo "$YT_PR_HTML" | grep -o '"countryCode":"[A-Za-z]\{2\}"' | head -n 1 | cut -d'"' -f4 | tr 'a-z' 'A-Z')
 fi
 
 # 核心 3: YouTube Music 探测
+YT_MU_GL=""
 YT_MU_HTML=$(curl $CURL_BIND_OPT $DYNAMIC_IP_PREF -m 10 -s -L "https://music.youtube.com/")
-YT_MU_GL=$(echo "$YT_MU_HTML" | grep -o '"GL":"[A-Za-z]\{2\}"' | head -n 1 | cut -d'"' -f4 | tr 'a-z' 'A-Z')
-
-# 综合判定逻辑：优先信任 Premium，其次 Music，最后 URL 跳转兜底
-REAL_REGION="${YT_PR_GL:-${YT_MU_GL:-$JUMP_GL}}"
-
-if [ -z "$REAL_REGION" ]; then
-    STATUS="🚨 探针失效 (三核全部熔断，可能遭严重风控拦截)"
+if echo "$YT_MU_HTML" | grep -q 'www.google.cn'; then
+    YT_MU_GL="CN"
 else
-    # [基准对齐] 提取配置大区，并修正英国代码
-    TARGET_CC="${REGION_CODE%%-*}"
-    [ "$TARGET_CC" == "UK" ] && TARGET_CC="GB"
-    
-    # 终极审判：宁可错杀，不可放过！(任一雷达报警即判送中)
-    if [ "$YT_PR_GL" == "CN" ] || [ "$YT_MU_GL" == "CN" ] || [ "$JUMP_GL" == "CN" ]; then
-        STATUS="❌ 严重高危！三核雷达判定 IP 已被中国大陆锁定 (送中)！"
-    elif [ "$REAL_REGION" == "$TARGET_CC" ]; then
-        STATUS="✅ 目标区域达成 (Jump: ${JUMP_GL:-无} | Prem: ${YT_PR_GL:-无} | Music: ${YT_MU_GL:-无})"
-    else
-        STATUS="⚠️ 区域发生漂移！目标 $TARGET_CC，实际 (Jump: ${JUMP_GL:-无} | Prem: ${YT_PR_GL:-无} | Music: ${YT_MU_GL:-无})"
+    YT_MU_GL=$(echo "$YT_MU_HTML" | grep -o '"GL":"[A-Za-z]\{2\}"' | head -n 1 | cut -d'"' -f4 | tr 'a-z' 'A-Z')
+fi
+
+# [基准对齐] 提取配置大区 (兼容州级穿透)，并修正英国的 ISO 代码
+TARGET_CC="${REGION_CODE%%-*}"
+[ "$TARGET_CC" == "UK" ] && TARGET_CC="GB"
+
+# --- 终极审判逻辑 (严格一致性一票否决校验) ---
+IS_CN=0
+IS_DRIFT=0
+VALID_PROBES=0
+
+check_region() {
+    local probe_val="$1"
+    if [ -n "$probe_val" ]; then
+        ((VALID_PROBES++))
+        if [ "$probe_val" == "CN" ]; then
+            IS_CN=1
+        elif [ "$probe_val" != "$TARGET_CC" ]; then
+            IS_DRIFT=1
+        fi
     fi
+}
+
+check_region "$JUMP_GL"
+check_region "$YT_PR_GL"
+check_region "$YT_MU_GL"
+
+if [ $VALID_PROBES -eq 0 ]; then
+    STATUS="🚨 探针失效 (三核全部熔断，可能遭严重风控拦截)"
+elif [ $IS_CN -eq 1 ]; then
+    STATUS="❌ 严重高危！三核雷达判定 IP 已被中国大陆锁定 (送中)！"
+elif [ $IS_DRIFT -eq 1 ]; then
+    STATUS="⚠️ 区域发生漂移！目标 $TARGET_CC，实际 (Jump: ${JUMP_GL:-无} | Prem: ${YT_PR_GL:-无} | Music: ${YT_MU_GL:-无})"
+else
+    STATUS="✅ 目标区域达成 (Jump: ${JUMP_GL:-无} | Prem: ${YT_PR_GL:-无} | Music: ${YT_MU_GL:-无})"
 fi
 
 log "$MODULE_NAME" "SCORE" "自检结论: $STATUS"
