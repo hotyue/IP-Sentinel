@@ -54,9 +54,8 @@ pkill -9 -f "tg_master.sh" >/dev/null 2>&1 || true
 
 # 3. 清除看门狗定时任务 (Cron)
 echo "[3/4] 正在清理系统定时任务 (Cron)..."
-crontab -l 2>/dev/null | grep -v "tg_master.sh" > /tmp/cron_backup
-crontab /tmp/cron_backup
-rm -f /tmp/cron_backup
+# [终极防御] 内存管道流过滤，绝不写硬盘
+crontab -l 2>/dev/null | grep -v "tg_master.sh" | crontab - >/dev/null 2>&1 || true
 
 # 4. 删除所有文件、配置与数据库
 echo "[4/4] 正在抹除核心程序、配置文件与 SQLite 数据库..."

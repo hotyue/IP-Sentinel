@@ -14,6 +14,10 @@ if [ "$EUID" -ne 0 ]; then
   exit 1
 fi
 
+# 🟢 [防劫持沙盒] 引入司令部专属随机安全工作区
+SECURE_TMP=$(mktemp -d /tmp/ips_master_install.XXXXXX)
+trap 'rm -rf "$SECURE_TMP"' EXIT HUP INT QUIT TERM
+
 # 你的 GitHub 仓库 Raw 数据直链前缀
 REPO_RAW_URL="https://raw.githubusercontent.com/hotyue/IP-Sentinel/main"
 # 临时改为开发地址用于测试
@@ -68,9 +72,9 @@ else
 
     if [ "$ACTION_CHOICE" == "2" ]; then
         echo -e "\n⏳ 正在拉取卸载程序..."
-        curl -sL "${REPO_RAW_URL}/master/uninstall_master.sh" -o "/tmp/uninstall_master.sh"
-        chmod +x "/tmp/uninstall_master.sh"
-        bash "/tmp/uninstall_master.sh"
+        curl -sL "${REPO_RAW_URL}/master/uninstall_master.sh" -o "${SECURE_TMP}/uninstall_master.sh"
+        chmod +x "${SECURE_TMP}/uninstall_master.sh"
+        bash "${SECURE_TMP}/uninstall_master.sh"
         rm -f "/tmp/uninstall_master.sh"
         exit 0
     fi
@@ -283,7 +287,7 @@ chmod 600 "$DB_FILE"
 # 4. 拉取核心调度代码并执行原子化交接
 echo -e "\n[4/4] 正在拉取新版司令部核心引擎..."
 
-TMP_MASTER="/tmp/ip_sentinel_master_core_$$"
+TMP_MASTER="${SECURE_TMP}/tg_master.sh"
 curl -sL "${REPO_RAW_URL}/master/tg_master.sh" -o "$TMP_MASTER"
 
 # 🛡️ 防砖终极校验
@@ -335,16 +339,13 @@ EOF
     systemctl enable --now ip-sentinel-master.service
     systemctl restart ip-sentinel-master.service
     
-    # 清理可能残留的历史 Cron
-    crontab -l 2>/dev/null | grep -v "tg_master.sh" > /tmp/cron_master || true
-    [ -f /tmp/cron_master ] && crontab /tmp/cron_master 2>/dev/null
-    rm -f /tmp/cron_master
+    # 清理可能残留的历史 Cron (无落地内存流防劫持)
+    crontab -l 2>/dev/null | grep -v "tg_master.sh" | crontab - >/dev/null 2>&1 || true
 else
     echo "💡 未检测到 Systemd，回退到 Cron 看门狗调度模式..."
-    crontab -l 2>/dev/null | grep -v "tg_master.sh" > /tmp/cron_master || true
-    echo "* * * * * pgrep -f tg_master.sh >/dev/null || nohup bash ${MASTER_DIR}/tg_master.sh >/dev/null 2>&1 &" >> /tmp/cron_master
-    [ -f /tmp/cron_master ] && crontab /tmp/cron_master 2>/dev/null
-    rm -f /tmp/cron_master
+    crontab -l 2>/dev/null | grep -v "tg_master.sh" > "${SECURE_TMP}/cron_master" || true
+    echo "* * * * * pgrep -f tg_master.sh >/dev/null || nohup bash ${MASTER_DIR}/tg_master.sh >/dev/null 2>&1 &" >> "${SECURE_TMP}/cron_master"
+    [ -f "${SECURE_TMP}/cron_master" ] && crontab "${SECURE_TMP}/cron_master" 2>/dev/null
     
     pgrep -f tg_master.sh >/dev/null || { nohup bash "${MASTER_DIR}/tg_master.sh" >/dev/null 2>&1 & disown 2>/dev/null; }
 fi
