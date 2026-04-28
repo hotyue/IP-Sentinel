@@ -138,9 +138,16 @@ while true; do
             # ================== [v4.0.2 核心: 态势感知按钮一键入库] ==================
             if [[ "$TEXT" == "svq|"* ]]; then
                 # 格式: svq|NODE_NAME|SCORE|GOOG|NF|GPT
-                IFS='|' read -r MAGIC NODE_ID SCORE GOOG_ST NF_ST GPT_ST <<< "$TEXT"
+                IFS='|' read -r MAGIC RAW_NODE_ID RAW_SCORE RAW_GOOG_ST RAW_NF_ST RAW_GPT_ST <<< "$TEXT"
                 CHAT_ID=$(echo "$CHAT_ID" | tr -cd '0-9-')
                 
+                # 🛡️ 终极防御：彻底清洗，封死一切 SQL 注入通道
+                NODE_ID=$(echo "$RAW_NODE_ID" | tr -cd 'a-zA-Z0-9_.-')
+                SCORE=$(echo "$RAW_SCORE" | tr -cd '0-9')
+                GOOG_ST=$(echo "$RAW_GOOG_ST" | tr -d '"'\''\`\$\|&;<>\n\r')
+                NF_ST=$(echo "$RAW_NF_ST" | tr -d '"'\''\`\$\|&;<>\n\r')
+                GPT_ST=$(echo "$RAW_GPT_ST" | tr -d '"'\''\`\$\|&;<>\n\r')
+
                 if [ -n "$NODE_ID" ] && [ -n "$SCORE" ]; then
                     # 1. 写入 SQLite
                     db_exec "INSERT INTO ip_trend_log (node_name, scam_score, goog_status, nf_status, gpt_status) VALUES ('$NODE_ID', '$SCORE', '$GOOG_ST', '$NF_ST', '$GPT_ST');"
@@ -308,8 +315,7 @@ while true; do
                         send_msg "$CHAT_ID" "📢 **司令部指令下达：正在唤醒全舰队执行 OTA 升级...**%0A*(节点升级成功后会主动发回新的入库确认，请注意查收)*"
                         echo "$NODE_DATA" | while IFS='|' read -r NNAME AIP APORT; do
                             TARGET_URL=$(generate_signed_url "$AIP" "$APORT" "/trigger_ota")
-                            # [灾难救援通道] 仅针对 OTA 允许一次明文回退，抢救缺失证书的老节点
-                            { curl -k -s -m 5 "$TARGET_URL" || curl -s -m 5 "${TARGET_URL/https:\/\//http:\/\/}"; } > /dev/null &
+                            curl -k -s -m 5 "$TARGET_URL" > /dev/null &
                             sleep 0.3  # 严格流量削峰
                         done
                     fi
@@ -415,10 +421,6 @@ while true; do
                             # 动态 HMAC 签名防篡改
                             TARGET_URL=$(generate_signed_url "$AGENT_IP" "$AGENT_PORT" "/trigger_quality")
                             RESPONSE=$(curl -k -s -m 5 "$TARGET_URL" || echo "FAILED")
-                            if [ "$RESPONSE" == "FAILED" ] || [ -z "$RESPONSE" ]; then
-                                TARGET_URL_HTTP="${TARGET_URL/https:\/\//http:\/\/}"
-                                RESPONSE=$(curl -s -m 5 "$TARGET_URL_HTTP" || echo "FAILED")
-                            fi
                             
                             # 结果判定
                             if [ "$RESPONSE" == "FAILED" ]; then
@@ -739,16 +741,8 @@ while true; do
                         TARGET_URL=$(generate_signed_url "$AGENT_IP" "$AGENT_PORT" "/trigger_ota")
                         RESPONSE=$(curl -k -s -m 5 "$TARGET_URL" || echo "FAILED")
                         
-                        # [灾难救援通道] 仅针对 OTA 开放一次性明文降级，用于抢救缺失 openssl 证书的老节点
                         if [ "$RESPONSE" == "FAILED" ]; then
-                            TARGET_URL_HTTP="${TARGET_URL/https:\/\//http:\/\/}"
-                            RESPONSE=$(curl -s -m 5 "$TARGET_URL_HTTP" || echo "FAILED")
-                            
-                            if [[ "$RESPONSE" == *"Action Accepted"* ]]; then
-                                TEXT_RES="⚠️ **明文救援成功**：该节点因缺失证书处于 HTTP 裸奔状态！已强行下发 OTA 抢救指令，请等待其重构 TLS 装甲。"
-                            else
-                                TEXT_RES="❌ OTA 指令下发彻底失败！节点已失联或网络阻断。"
-                            fi
+                            TEXT_RES="❌ OTA 指令下发彻底失败！链路异常或严禁使用 HTTP 降级通讯。"
                         elif [[ "$RESPONSE" == *"403"* ]]; then
                             TEXT_RES="⚠️ **节点拒绝执行**：该节点本地未开启 OTA 权限或运行在官方网关下！"
                         else
