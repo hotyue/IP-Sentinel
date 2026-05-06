@@ -276,6 +276,16 @@
               ]
             },
             {
+              "id": "HI",
+              "name": "Hawaii (夏威夷州)",
+              "cities": [
+                {
+                  "id": "Honolulu",
+                  "name": "Honolulu (檀香山)"
+                }
+              ]
+            },
+            {
               "id": "IL",
               "name": "Illinois (伊利诺伊州)",
               "cities": [

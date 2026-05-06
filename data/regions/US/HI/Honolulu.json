@@ -1,0 +1,45 @@
+{
+  "region_name": "United States - Hawaii (Honolulu)",
+  "google_module": {
+    "base_lat": 21.3069,
+    "base_lon": -157.8583,
+    "lang_params": "hl=en-US&gl=US",
+    "valid_url_suffix": "com"
+  },
+  "trust_module": {
+    "white_urls": [
+      "https://www.hawaii.edu/",
+      "https://www.thebus.org/",
+      "https://www.honolulutransit.org/",
+      "https://www.hawaiitourismauthority.org/",
+      "https://www.staradvertiser.com/",
+      "https://www.hawaiinewsnow.com/",
+      "https://www.kitv.com/",
+      "https://www.oneoahu.org/",
+      "https://www.civilbeat.org/",
+      "https://www.hawaiipublicradio.org/",
+      "https://www.pbshawaii.org/",
+      "https://www.hawaiianelectric.com/",
+      "https://www.hmsa.com/",
+      "https://www.queens.org/",
+      "https://www.hawaiipacifichealth.org/",
+      "https://www.boh.com/",
+      "https://www.fhb.com/",
+      "https://www.asbhawaii.com/",
+      "https://www.chaminade.edu/",
+      "https://www.hpu.edu/"
+    ],
+    "static_urls": [
+      "https://www.hawaii.edu/",
+      "https://www.thebus.org/",
+      "https://www.oneoahu.org/",
+      "https://www.hawaiitourismauthority.org/",
+      "https://www.staradvertiser.com/",
+      "https://www.hawaiinewsnow.com/",
+      "https://www.hawaiianelectric.com/",
+      "https://www.boh.com/",
+      "https://www.fhb.com/",
+      "https://www.asbhawaii.com/"
+    ]
+  }
+}
