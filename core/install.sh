@@ -651,6 +651,7 @@ mkdir -p "$TMP_CORE"
 curl -sL "${REPO_RAW_URL}/core/runner.sh" -o "${TMP_CORE}/runner.sh"
 curl -sL "${REPO_RAW_URL}/core/preflight.sh" -o "${TMP_CORE}/preflight.sh"
 curl -sL "${REPO_RAW_URL}/core/mod_probe.sh" -o "${TMP_CORE}/mod_probe.sh"
+curl -sL "${REPO_RAW_URL}/core/mod_state.py" -o "${TMP_CORE}/mod_state.py"
 curl -sL "${REPO_RAW_URL}/core/updater.sh" -o "${TMP_CORE}/updater.sh"
 curl -sL "${REPO_RAW_URL}/core/tg_report.sh" -o "${TMP_CORE}/tg_report.sh"
 curl -sL "${REPO_RAW_URL}/core/agent_daemon.sh" -o "${TMP_CORE}/agent_daemon.sh"
@@ -660,7 +661,7 @@ curl -sL "${REPO_RAW_URL}/core/mod_trust.sh" -o "${TMP_CORE}/mod_trust.sh"
 curl -sL "${REPO_RAW_URL}/core/mod_quality.sh" -o "${TMP_CORE}/mod_quality.sh"
 
 # 🛡️ 防砖终极校验：检查关键文件是否真实存在且不为空
-if [ ! -s "${TMP_CORE}/runner.sh" ] || [ ! -s "${TMP_CORE}/preflight.sh" ] || [ ! -s "${TMP_CORE}/mod_probe.sh" ] || [ ! -s "${TMP_CORE}/agent_daemon.sh" ]; then
+if [ ! -s "${TMP_CORE}/runner.sh" ] || [ ! -s "${TMP_CORE}/preflight.sh" ] || [ ! -s "${TMP_CORE}/mod_probe.sh" ] || [ ! -s "${TMP_CORE}/mod_state.py" ] || [ ! -s "${TMP_CORE}/agent_daemon.sh" ]; then
     echo -e "\033[31m❌ 致命错误：核心代码拉取失败！网络阻断或 GitHub Raw 异常。\033[0m"
     echo "🛡️ 防砖机制触发：已中止覆盖，旧版哨兵引擎仍安全存活中。"
     rm -rf "$TMP_CORE"
@@ -685,6 +686,7 @@ pkill -9 -f "sentinel_scheduler.sh" >/dev/null 2>&1 || true
 rm -rf "${INSTALL_DIR}/core" 2>/dev/null
 mv "$TMP_CORE" "${INSTALL_DIR}/core"
 chmod +x ${INSTALL_DIR}/core/*.sh
+chmod +x ${INSTALL_DIR}/core/mod_state.py 2>/dev/null || true
 
 # 拉取热数据与词库
 curl -sL "${REPO_RAW_URL}/data/user_agents.txt" -o "${INSTALL_DIR}/data/user_agents.txt"
