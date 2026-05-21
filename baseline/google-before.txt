@@ -1,0 +1,23 @@
+Stage: phase-0
+Branch: feat/geoanchor-optimization
+Commit: 8c9285c68f9e4ced7486b9db5b107bc3388d43d5
+
+Baseline scope:
+- Repository baseline captured before GeoAnchor implementation.
+- This checkout is a Windows working tree with CRLF line endings in core shell scripts.
+
+Observed baseline:
+- git ls-files --eol core/mod_google.sh => i/lf w/crlf
+- Raw bash -n on the checked-out file fails in Git Bash because the working tree uses CRLF.
+- Normalized syntax check passes:
+  tr -d '\r' < core/mod_google.sh | bash -n
+
+Relevant findings:
+- Existing Google Maps URL bug candidate at core/mod_google.sh:155
+  https://www.google.com/maps/search/$${ENCODED_KEY}/@${ACTION_LAT},${ACTION_LON},17z?${LANG_PARAMS}
+- The script does not currently implement a --check-only mode.
+- No bot risk state file or daily search quota exists in the current baseline.
+
+Runtime note:
+- Full execution depends on /opt/ip_sentinel/config.conf, installed data files, network route state, and external endpoints.
+- Those deployment prerequisites are not reproducible from this repository checkout alone, so this stage records a static and syntax baseline only.

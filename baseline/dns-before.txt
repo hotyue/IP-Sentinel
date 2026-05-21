@@ -1,0 +1,17 @@
+Stage: phase-0
+Branch: feat/geoanchor-optimization
+Commit: 8c9285c68f9e4ced7486b9db5b107bc3388d43d5
+
+DNS and routing baseline:
+- No standalone DNS baseline command is provided in the repository checkout.
+- runner.sh currently performs probabilistic module dispatch only and has no DNS consistency gate.
+- mod_google.sh and mod_quality.sh both depend on deployed runtime configuration under /opt/ip_sentinel.
+
+Observed repository gaps before GeoAnchor work:
+- No dedicated preflight module for DNS, IPv4/IPv6 consistency, timezone, NTP, or proxy pollution.
+- No state/bot_risk.json baseline file exists.
+- No state-driven runner skip logic exists for DNS_RISK or BOT_RISK.
+
+Baseline conclusion:
+- DNS-related baseline for this phase is documented as "not yet implemented in repository code".
+- Live DNS exit-country measurement will be introduced in phase-2 preflight work.

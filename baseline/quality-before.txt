@@ -1,0 +1,18 @@
+Stage: phase-0
+Branch: feat/geoanchor-optimization
+Commit: 8c9285c68f9e4ced7486b9db5b107bc3388d43d5
+
+Observed baseline:
+- git ls-files --eol core/mod_quality.sh => i/lf w/crlf
+- Raw bash -n on the checked-out file fails in Git Bash because the working tree uses CRLF.
+- Normalized syntax check passes:
+  tr -d '\r' < core/mod_quality.sh | bash -n
+
+Current behavior snapshot:
+- The module sources /opt/ip_sentinel/config.conf directly.
+- The module fetches or reuses /opt/ip_sentinel/core/ip_probe.sh at runtime.
+- The module already contains its own lightweight network preflight logic for ip.sh reachability, but no GeoAnchor preflight JSON contract exists yet.
+
+Runtime note:
+- A full live run requires a deployed Linux agent environment under /opt/ip_sentinel plus reachable external services.
+- This baseline therefore records repository state and shell validity rather than a live probe result.
