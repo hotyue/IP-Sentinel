@@ -525,6 +525,9 @@ if [ "$UPGRADE_MODE" == "false" ]; then
 AGENT_VERSION="$TARGET_VERSION"
 REGION_CODE="$REGION_CODE"
 REGION_NAME="$REGION_NAME"
+TARGET_COUNTRY="$COUNTRY_ID"
+TARGET_STATE="$STATE_ID"
+TARGET_CITY="$CITY_ID"
 BASE_LAT="$BASE_LAT"
 BASE_LON="$BASE_LON"
 LANG_PARAMS="$LANG_PARAMS"
@@ -622,6 +625,16 @@ if [ "$UPGRADE_MODE" == "true" ]; then
     else
         ENABLE_OTA=$(grep "^ENABLE_OTA=" "$CONFIG_FILE" | cut -d'"' -f2)
     fi
+
+    if ! grep -q "^TARGET_COUNTRY=" "$CONFIG_FILE"; then
+        echo "TARGET_COUNTRY=\"${REGION_CODE%%-*}\"" >> "$CONFIG_FILE"
+    fi
+    if ! grep -q "^TARGET_STATE=" "$CONFIG_FILE"; then
+        echo "TARGET_STATE=\"Default\"" >> "$CONFIG_FILE"
+    fi
+    if ! grep -q "^TARGET_CITY=" "$CONFIG_FILE"; then
+        echo "TARGET_CITY=\"$(printf '%s' "${REGION_NAME##* - }" | tr ' ' '_')\"" >> "$CONFIG_FILE"
+    fi
 fi
 # ========================================================================
 
@@ -636,6 +649,7 @@ mkdir -p "$TMP_CORE"
 
 # 拉取核心代码至临时区
 curl -sL "${REPO_RAW_URL}/core/runner.sh" -o "${TMP_CORE}/runner.sh"
+curl -sL "${REPO_RAW_URL}/core/preflight.sh" -o "${TMP_CORE}/preflight.sh"
 curl -sL "${REPO_RAW_URL}/core/updater.sh" -o "${TMP_CORE}/updater.sh"
 curl -sL "${REPO_RAW_URL}/core/tg_report.sh" -o "${TMP_CORE}/tg_report.sh"
 curl -sL "${REPO_RAW_URL}/core/agent_daemon.sh" -o "${TMP_CORE}/agent_daemon.sh"
@@ -645,7 +659,7 @@ curl -sL "${REPO_RAW_URL}/core/mod_trust.sh" -o "${TMP_CORE}/mod_trust.sh"
 curl -sL "${REPO_RAW_URL}/core/mod_quality.sh" -o "${TMP_CORE}/mod_quality.sh"
 
 # 🛡️ 防砖终极校验：检查关键文件是否真实存在且不为空
-if [ ! -s "${TMP_CORE}/runner.sh" ] || [ ! -s "${TMP_CORE}/agent_daemon.sh" ]; then
+if [ ! -s "${TMP_CORE}/runner.sh" ] || [ ! -s "${TMP_CORE}/preflight.sh" ] || [ ! -s "${TMP_CORE}/agent_daemon.sh" ]; then
     echo -e "\033[31m❌ 致命错误：核心代码拉取失败！网络阻断或 GitHub Raw 异常。\033[0m"
     echo "🛡️ 防砖机制触发：已中止覆盖，旧版哨兵引擎仍安全存活中。"
     rm -rf "$TMP_CORE"

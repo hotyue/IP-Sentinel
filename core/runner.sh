@@ -17,6 +17,8 @@ source "$CONFIG_FILE"
 
 STATE_DIR="${INSTALL_DIR}/state"
 BOT_RISK_FILE="${STATE_DIR}/bot_risk.json"
+PREFLIGHT_FILE="${STATE_DIR}/preflight-last.json"
+GEO_STATE_FILE="${STATE_DIR}/geo_state.json"
 
 # ================== [新增: 文件排他锁，防止并发重入引发内存雪崩] ==================
 exec 200>"/tmp/ip_sentinel_runner.lock"
@@ -62,6 +64,21 @@ bot_risk_active() {
     [ "$active" = "true" ] && [ "$expires_at_epoch" -gt "$(date -u +%s)" ]
 }
 
+update_geo_state_from_preflight() {
+    local state_hint=$1
+    local preflight_payload=$2
+
+    printf '%s\n' "$preflight_payload" | jq \
+        --arg current_state "$state_hint" \
+        --arg updated_at "$(date -u '+%Y-%m-%dT%H:%M:%SZ')" \
+        '{
+            current_state: $current_state,
+            updated_at: $updated_at,
+            last_preflight_ok: .ok,
+            last_preflight: .
+        }' > "$GEO_STATE_FILE"
+}
+
 # 3. 防僵尸网络特征 (Cron Jitter) - 核心隐蔽逻辑
 # 配合每 20 分钟的调度周期，将随机休眠控制在 0 到 180 秒内，彻底打散全球并发请求
 if [ -t 1 ]; then
@@ -74,6 +91,23 @@ fi
 
 # 4. 唤醒并读取功能开关，执行智能调度 (Feature Flag)
 log "SYSTEM" "INFO" "休眠结束，开始计算本轮任务轮盘..."
+mkdir -p "$STATE_DIR"
+
+if [ -x "${INSTALL_DIR}/core/preflight.sh" ]; then
+    PREFLIGHT_JSON=$(bash "${INSTALL_DIR}/core/preflight.sh")
+    printf '%s\n' "$PREFLIGHT_JSON" > "$PREFLIGHT_FILE"
+    PREFLIGHT_OK=$(printf '%s' "$PREFLIGHT_JSON" | jq -r '.ok // false' 2>/dev/null)
+    PREFLIGHT_STATE=$(printf '%s' "$PREFLIGHT_JSON" | jq -r '.state_hint // "UNKNOWN"' 2>/dev/null)
+    update_geo_state_from_preflight "$PREFLIGHT_STATE" "$PREFLIGHT_JSON"
+
+    if [ "$PREFLIGHT_OK" != "true" ]; then
+        PREFLIGHT_ERRORS=$(printf '%s' "$PREFLIGHT_JSON" | jq -r '.errors | join("; ")' 2>/dev/null)
+        log "SYSTEM" "WARN" "Preflight 未通过，当前状态写入 ${PREFLIGHT_STATE}，本轮主动跳过所有养护行为。原因: ${PREFLIGHT_ERRORS:-未知}"
+        exit 0
+    fi
+else
+    log "SYSTEM" "WARN" "未发现 preflight.sh，继续沿用旧版调度路径。"
+fi
 
 TARGET_MOD=""
 MOD_NAME=""
