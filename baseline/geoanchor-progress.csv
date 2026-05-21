@@ -2,7 +2,7 @@ phase_id,phase_title,status,branch,summary,validation,updated_at
 phase-0,建立安全分支与基线,done,feat/geoanchor-optimization,"已创建功能分支；已生成 baseline/quality-before.txt、baseline/google-before.txt、baseline/dns-before.txt；已建立阶段进度记录表。","git ls-files --eol 显示 core shell 脚本工作区为 CRLF；对 mod_google.sh、mod_quality.sh、runner.sh 进行 CRLF 归一化后 bash -n 均通过。","2026-05-21T02:20:00-07:00"
 phase-1,热修复与安全限频,done,feat/geoanchor-optimization,"已修复 mod_google.sh 中的 Maps URL；已加入每日 Search quota、BOT_RISK 状态文件与 403/429/CAPTCHA 风控拦截；runner 已在 BOT_RISK 冷却期自动跳过 Google 模块。","归一化 bash -n 通过；Maps URL 定向校验通过；quota 限制、429 触发 BOT_RISK、runner 跳过 Google 的定向自测均通过。","2026-05-21T02:45:00-07:00"
 phase-2,Preflight 模块,done,feat/geoanchor-optimization,"已新增 core/preflight.sh；已把 target country/state/city 写入安装配置；runner 已接入 preflight 并在失败时写入 DNS_RISK/UNKNOWN 状态后跳过本轮养护。","归一化 bash -n 通过；preflight 成功 JSON、自定义 DNS_RISK 判定、runner preflight 拦截的定向自测均通过。","2026-05-21T07:40:00-07:00"
-phase-3,GeoScore 探针模块,pending,feat/geoanchor-optimization,"待执行：新增 core/mod_probe.sh 并写入评分历史。","待执行","2026-05-21T02:20:00-07:00"
+phase-3,GeoScore 探针模块,done,feat/geoanchor-optimization,"已新增 core/mod_probe.sh；复用了 Jump、YouTube Premium、YouTube Music 探针，并纳入 DNS、活动 IP 栈、public IP 匹配与解析可用性评分；已写入 state/geo_score_history.jsonl。","归一化 bash -n 通过；GeoScore 正常输出、IPv4/IPv6 分离探测与历史 JSONL 落盘的定向自测均通过。","2026-05-21T07:55:00-07:00"
 phase-4,状态机模块,pending,feat/geoanchor-optimization,"待执行：新增 core/mod_state.py。","待执行","2026-05-21T02:20:00-07:00"
 phase-5,真实浏览器锚定模块,pending,feat/geoanchor-optimization,"待执行：新增 core/mod_anchor_browser.py。","待执行","2026-05-21T02:20:00-07:00"
 phase-6,Local Trust 模块重构,pending,feat/geoanchor-optimization,"待执行：新增 trust profile 与 core/mod_local_trust.py。","待执行","2026-05-21T02:20:00-07:00"
