@@ -59,7 +59,7 @@ if [ ${#MISSING_CMDS[@]} -gt 0 ]; then
         # Debian / Ubuntu 系列
         apt-get update -y >/dev/null 2>&1
         # [v3.6.3 抽脂级优化] 注入 --no-install-recommends 拒绝捆绑销售，大幅节省磁盘与内存
-        apt-get install -y --no-install-recommends curl jq cron procps python3 openssl >/dev/null 2>&1
+        apt-get install -y --no-install-recommends curl jq cron procps python3 python3-venv python3-pip openssl >/dev/null 2>&1
         systemctl enable cron >/dev/null 2>&1 && systemctl start cron >/dev/null 2>&1
         
     elif command -v yum >/dev/null 2>&1 || command -v dnf >/dev/null 2>&1; then
@@ -71,21 +71,21 @@ if [ ${#MISSING_CMDS[@]} -gt 0 ]; then
             # [v3.6.3 抽脂级优化] 强行关闭 DNF 的弱依赖拉取
             OPT_ARGS="--setopt=install_weak_deps=False"
         fi
-        $PKG_MGR install -y $OPT_ARGS curl jq cronie procps-ng python3 openssl >/dev/null 2>&1
+        $PKG_MGR install -y $OPT_ARGS curl jq cronie procps-ng python3 python3-pip openssl >/dev/null 2>&1
         systemctl enable crond >/dev/null 2>&1 && systemctl start crond >/dev/null 2>&1
         
     elif command -v apk >/dev/null 2>&1; then
         # Alpine 本身就是极致精简，无需特殊参数
         echo "Alpine 探测到系统类型为 Alpine Linux，正在执行轻量级安装..."
         # [修复] 新版 Alpine 已废弃 dcron。优先尝试 cronie，若失败则信任自带 busybox-cron，并移除屏蔽以便暴露报错
-        apk add --no-cache curl jq cronie procps python3 bash openssl || apk add --no-cache curl jq procps python3 bash openssl
+        apk add --no-cache curl jq cronie procps python3 py3-pip bash openssl || apk add --no-cache curl jq procps python3 py3-pip bash openssl
         mkdir -p /var/spool/cron/crontabs
         rc-update add crond default >/dev/null 2>&1
         service crond start >/dev/null 2>&1
         
     elif command -v pacman >/dev/null 2>&1; then
         # Arch Linux 系列 (采用 --needed 防重复，剥离 -y 防部分升级炸系统)
-        pacman -S --needed --noconfirm curl jq cronie procps-ng python openssl >/dev/null 2>&1
+        pacman -S --needed --noconfirm curl jq cronie procps-ng python python-pip openssl >/dev/null 2>&1
         mkdir -p /root/.cache/crontab 2>/dev/null
         systemctl enable cronie >/dev/null 2>&1 && systemctl start cronie >/dev/null 2>&1
         
@@ -93,11 +93,11 @@ if [ ${#MISSING_CMDS[@]} -gt 0 ]; then
         # 无法识别的系统：退出并给出清晰的引导信息 (同步更新防捆绑参数)
         echo -e "\033[31m❌ 自动安装失败：系统未知的包管理器。\033[0m"
         echo -e "\033[33m⚠️ 请根据您的操作系统，手动执行以下安装命令后重新运行本脚本：\033[0m"
-        echo -e "  Debian/Ubuntu: \033[36mapt-get update && apt-get install -y --no-install-recommends curl jq cron procps python3 openssl\033[0m"
-        echo -e "  CentOS/RHEL:   \033[36myum install -y curl jq cronie procps-ng python3 openssl\033[0m"
-        echo -e "  Alpine Linux:  \033[36mapk add --no-cache curl jq cronie procps python3 bash openssl\033[0m"
+        echo -e "  Debian/Ubuntu: \033[36mapt-get update && apt-get install -y --no-install-recommends curl jq cron procps python3 python3-venv python3-pip openssl\033[0m"
+        echo -e "  CentOS/RHEL:   \033[36myum install -y curl jq cronie procps-ng python3 python3-pip openssl\033[0m"
+        echo -e "  Alpine Linux:  \033[36mapk add --no-cache curl jq cronie procps python3 py3-pip bash openssl\033[0m"
         # Arch 用户，如果出问题，应该用 -Syu 进行全系统安全更新
-        echo -e "  Arch Linux:    \033[36mpacman -Syu --needed curl jq cronie procps-ng python openssl\033[0m"
+        echo -e "  Arch Linux:    \033[36mpacman -Syu --needed curl jq cronie procps-ng python python-pip openssl\033[0m"
         exit 1
     fi
     
@@ -543,6 +543,9 @@ CHAT_ID="$CHAT_ID"
 AGENT_PORT="$AGENT_PORT"
 INSTALL_DIR="$INSTALL_DIR"
 LOG_FILE="${INSTALL_DIR}/logs/sentinel.log"
+GEOANCHOR_VENV="${INSTALL_DIR}/venv"
+PLAYWRIGHT_BROWSERS_PATH="${INSTALL_DIR}/playwright-browsers"
+ENABLE_GEOANCHOR_BROWSER="true"
 
 # [v3.3.1修改: 双核身份剥离配置] 
 IP_PREF="$IP_PREF"
@@ -652,6 +655,7 @@ curl -sL "${REPO_RAW_URL}/core/runner.sh" -o "${TMP_CORE}/runner.sh"
 curl -sL "${REPO_RAW_URL}/core/preflight.sh" -o "${TMP_CORE}/preflight.sh"
 curl -sL "${REPO_RAW_URL}/core/mod_probe.sh" -o "${TMP_CORE}/mod_probe.sh"
 curl -sL "${REPO_RAW_URL}/core/mod_state.py" -o "${TMP_CORE}/mod_state.py"
+curl -sL "${REPO_RAW_URL}/core/mod_anchor_browser.py" -o "${TMP_CORE}/mod_anchor_browser.py"
 curl -sL "${REPO_RAW_URL}/core/updater.sh" -o "${TMP_CORE}/updater.sh"
 curl -sL "${REPO_RAW_URL}/core/tg_report.sh" -o "${TMP_CORE}/tg_report.sh"
 curl -sL "${REPO_RAW_URL}/core/agent_daemon.sh" -o "${TMP_CORE}/agent_daemon.sh"
@@ -661,7 +665,7 @@ curl -sL "${REPO_RAW_URL}/core/mod_trust.sh" -o "${TMP_CORE}/mod_trust.sh"
 curl -sL "${REPO_RAW_URL}/core/mod_quality.sh" -o "${TMP_CORE}/mod_quality.sh"
 
 # 🛡️ 防砖终极校验：检查关键文件是否真实存在且不为空
-if [ ! -s "${TMP_CORE}/runner.sh" ] || [ ! -s "${TMP_CORE}/preflight.sh" ] || [ ! -s "${TMP_CORE}/mod_probe.sh" ] || [ ! -s "${TMP_CORE}/mod_state.py" ] || [ ! -s "${TMP_CORE}/agent_daemon.sh" ]; then
+if [ ! -s "${TMP_CORE}/runner.sh" ] || [ ! -s "${TMP_CORE}/preflight.sh" ] || [ ! -s "${TMP_CORE}/mod_probe.sh" ] || [ ! -s "${TMP_CORE}/mod_state.py" ] || [ ! -s "${TMP_CORE}/mod_anchor_browser.py" ] || [ ! -s "${TMP_CORE}/agent_daemon.sh" ]; then
     echo -e "\033[31m❌ 致命错误：核心代码拉取失败！网络阻断或 GitHub Raw 异常。\033[0m"
     echo "🛡️ 防砖机制触发：已中止覆盖，旧版哨兵引擎仍安全存活中。"
     rm -rf "$TMP_CORE"
@@ -687,6 +691,40 @@ rm -rf "${INSTALL_DIR}/core" 2>/dev/null
 mv "$TMP_CORE" "${INSTALL_DIR}/core"
 chmod +x ${INSTALL_DIR}/core/*.sh
 chmod +x ${INSTALL_DIR}/core/mod_state.py 2>/dev/null || true
+chmod +x ${INSTALL_DIR}/core/mod_anchor_browser.py 2>/dev/null || true
+
+echo -e "\n[6.1/7] 正在装配 GeoAnchor 浏览器运行时 (Playwright + Chromium)..."
+GEOANCHOR_VENV="${INSTALL_DIR}/venv"
+PLAYWRIGHT_BROWSERS_PATH="${INSTALL_DIR}/playwright-browsers"
+mkdir -p "${PLAYWRIGHT_BROWSERS_PATH}" "${INSTALL_DIR}/profiles"
+
+if ! grep -q "^GEOANCHOR_VENV=" "$CONFIG_FILE"; then
+    echo "GEOANCHOR_VENV=\"${GEOANCHOR_VENV}\"" >> "$CONFIG_FILE"
+fi
+if ! grep -q "^PLAYWRIGHT_BROWSERS_PATH=" "$CONFIG_FILE"; then
+    echo "PLAYWRIGHT_BROWSERS_PATH=\"${PLAYWRIGHT_BROWSERS_PATH}\"" >> "$CONFIG_FILE"
+fi
+if ! grep -q "^ENABLE_GEOANCHOR_BROWSER=" "$CONFIG_FILE"; then
+    echo "ENABLE_GEOANCHOR_BROWSER=\"true\"" >> "$CONFIG_FILE"
+fi
+
+if ! python3 -m venv "${GEOANCHOR_VENV}" >/dev/null 2>&1; then
+    python3 -m ensurepip --upgrade >/dev/null 2>&1 || true
+    python3 -m venv "${GEOANCHOR_VENV}" >/dev/null 2>&1 || true
+fi
+if [ ! -x "${GEOANCHOR_VENV}/bin/python" ]; then
+    echo -e "\033[31m❌ GeoAnchor 浏览器运行时初始化失败：无法创建 Python venv。\033[0m"
+    sed -i "s/^ENABLE_GEOANCHOR_BROWSER=.*/ENABLE_GEOANCHOR_BROWSER=\"false\"/" "$CONFIG_FILE"
+else
+    if "${GEOANCHOR_VENV}/bin/python" -m pip install --quiet --upgrade pip setuptools wheel >/dev/null 2>&1 && \
+       "${GEOANCHOR_VENV}/bin/python" -m pip install --quiet playwright >/dev/null 2>&1 && \
+       PLAYWRIGHT_BROWSERS_PATH="${PLAYWRIGHT_BROWSERS_PATH}" "${GEOANCHOR_VENV}/bin/python" -m playwright install chromium >/dev/null 2>&1; then
+        echo -e "\033[32m✅ GeoAnchor 浏览器运行时已装配完成。\033[0m"
+    else
+        echo -e "\033[33m⚠️ GeoAnchor 浏览器运行时装配失败，已自动禁用浏览器锚定模块，请稍后修复后再启用。\033[0m"
+        sed -i "s/^ENABLE_GEOANCHOR_BROWSER=.*/ENABLE_GEOANCHOR_BROWSER=\"false\"/" "$CONFIG_FILE"
+    fi
+fi
 
 # 拉取热数据与词库
 curl -sL "${REPO_RAW_URL}/data/user_agents.txt" -o "${INSTALL_DIR}/data/user_agents.txt"
