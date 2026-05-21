@@ -15,6 +15,9 @@ if [ ! -f "$CONFIG_FILE" ]; then
 fi
 source "$CONFIG_FILE"
 
+STATE_DIR="${INSTALL_DIR}/state"
+BOT_RISK_FILE="${STATE_DIR}/bot_risk.json"
+
 # ================== [新增: 文件排他锁，防止并发重入引发内存雪崩] ==================
 exec 200>"/tmp/ip_sentinel_runner.lock"
 if ! flock -n 200; then
@@ -49,6 +52,16 @@ log() {
 export -f log
 export CONFIG_FILE INSTALL_DIR
 
+bot_risk_active() {
+    [ -f "$BOT_RISK_FILE" ] || return 1
+
+    local active expires_at_epoch
+    active=$(jq -r '.active // false' "$BOT_RISK_FILE" 2>/dev/null)
+    expires_at_epoch=$(jq -r '.expires_at_epoch // 0' "$BOT_RISK_FILE" 2>/dev/null)
+
+    [ "$active" = "true" ] && [ "$expires_at_epoch" -gt "$(date -u +%s)" ]
+}
+
 # 3. 防僵尸网络特征 (Cron Jitter) - 核心隐蔽逻辑
 # 配合每 20 分钟的调度周期，将随机休眠控制在 0 到 180 秒内，彻底打散全球并发请求
 if [ -t 1 ]; then
@@ -64,9 +77,16 @@ log "SYSTEM" "INFO" "休眠结束，开始计算本轮任务轮盘..."
 
 TARGET_MOD=""
 MOD_NAME=""
+GOOGLE_ALLOWED="$ENABLE_GOOGLE"
+
+if [ "$ENABLE_GOOGLE" == "true" ] && bot_risk_active; then
+    GOOGLE_ALLOWED="false"
+    BOT_RISK_UNTIL=$(jq -r '.expires_at // ""' "$BOT_RISK_FILE" 2>/dev/null)
+    log "SYSTEM" "WARN" "检测到 BOT_RISK 冷却中，自动跳过 Google 模块，冷却截止: ${BOT_RISK_UNTIL:-未知}"
+fi
 
 # 智能轮盘赌算法
-if [ "$ENABLE_GOOGLE" == "true" ] && [ "$ENABLE_TRUST" == "true" ]; then
+if [ "$GOOGLE_ALLOWED" == "true" ] && [ "$ENABLE_TRUST" == "true" ]; then
     # 双管齐下: 70% 概率跑 Google 稳固定位，30% 概率跑 Trust 洗刷风控分
     ROLL=$((RANDOM % 100 + 1))
     if [ $ROLL -le 70 ]; then
@@ -76,14 +96,18 @@ if [ "$ENABLE_GOOGLE" == "true" ] && [ "$ENABLE_TRUST" == "true" ]; then
         TARGET_MOD="mod_trust.sh"
         MOD_NAME="IP 信用净化"
     fi
-elif [ "$ENABLE_GOOGLE" == "true" ]; then
+elif [ "$GOOGLE_ALLOWED" == "true" ]; then
     TARGET_MOD="mod_google.sh"
     MOD_NAME="Google 区域纠偏"
 elif [ "$ENABLE_TRUST" == "true" ]; then
     TARGET_MOD="mod_trust.sh"
     MOD_NAME="IP 信用净化"
 else
-    log "SYSTEM" "WARN" "节点未开启任何养护模块，跳过本轮执行。"
+    if [ "$ENABLE_GOOGLE" == "true" ] && [ "$GOOGLE_ALLOWED" != "true" ]; then
+        log "SYSTEM" "WARN" "Google 模块处于 BOT_RISK 冷却状态，且没有可运行的其他模块，跳过本轮执行。"
+    else
+        log "SYSTEM" "WARN" "节点未开启任何养护模块，跳过本轮执行。"
+    fi
     exit 0
 fi
 

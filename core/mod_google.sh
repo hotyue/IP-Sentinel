@@ -55,7 +55,149 @@ fi
 mapfile -t UA_POOL < <(grep -v '^$' "$UA_FILE")
 mapfile -t KEYWORDS < <(grep -v '^$' "$KW_FILE")
 
+STATE_DIR="${INSTALL_DIR}/state"
+BOT_RISK_FILE="${STATE_DIR}/bot_risk.json"
+SEARCH_QUOTA_FILE="${STATE_DIR}/google_search_quota.json"
+SEARCH_DAILY_QUOTA="${GOOGLE_SEARCH_DAILY_QUOTA:-2}"
+BOT_RISK_COOLDOWN_HOURS="${BOT_RISK_COOLDOWN_HOURS:-72}"
+
 # --- [工具函数] ---
+utc_now_iso() {
+    date -u '+%Y-%m-%dT%H:%M:%SZ'
+}
+
+utc_now_epoch() {
+    date -u +%s
+}
+
+epoch_to_utc_iso() {
+    date -u -d "@$1" '+%Y-%m-%dT%H:%M:%SZ'
+}
+
+ensure_state_dir() {
+    mkdir -p "$STATE_DIR"
+}
+
+write_bot_risk_file() {
+    local reason=$1
+    local http_status=${2:-""}
+    local target_url=${3:-""}
+    local now_epoch expires_epoch now_iso expires_iso
+    now_epoch=$(utc_now_epoch)
+    expires_epoch=$((now_epoch + BOT_RISK_COOLDOWN_HOURS * 3600))
+    now_iso=$(utc_now_iso)
+    expires_iso=$(epoch_to_utc_iso "$expires_epoch")
+
+    jq -n \
+        --arg reason "$reason" \
+        --arg http_status "$http_status" \
+        --arg target_url "$target_url" \
+        --arg detected_at "$now_iso" \
+        --arg expires_at "$expires_iso" \
+        --argjson expires_at_epoch "$expires_epoch" \
+        --argjson cooldown_hours "$BOT_RISK_COOLDOWN_HOURS" \
+        '{
+            active: true,
+            reason: $reason,
+            http_status: $http_status,
+            target_url: $target_url,
+            detected_at: $detected_at,
+            expires_at: $expires_at,
+            expires_at_epoch: $expires_at_epoch,
+            cooldown_hours: $cooldown_hours
+        }' > "${BOT_RISK_FILE}.tmp" && mv "${BOT_RISK_FILE}.tmp" "$BOT_RISK_FILE"
+}
+
+clear_expired_bot_risk() {
+    [ -f "$BOT_RISK_FILE" ] || return 1
+
+    local active expires_at_epoch
+    active=$(jq -r '.active // false' "$BOT_RISK_FILE" 2>/dev/null)
+    expires_at_epoch=$(jq -r '.expires_at_epoch // 0' "$BOT_RISK_FILE" 2>/dev/null)
+
+    if [ "$active" = "true" ] && [ "$expires_at_epoch" -le "$(utc_now_epoch)" ]; then
+        jq --arg cleared_at "$(utc_now_iso)" \
+            '.active = false | .cleared_at = $cleared_at' \
+            "$BOT_RISK_FILE" > "${BOT_RISK_FILE}.tmp" && mv "${BOT_RISK_FILE}.tmp" "$BOT_RISK_FILE"
+    fi
+}
+
+bot_risk_active() {
+    clear_expired_bot_risk
+    [ -f "$BOT_RISK_FILE" ] || return 1
+
+    local active expires_at_epoch
+    active=$(jq -r '.active // false' "$BOT_RISK_FILE" 2>/dev/null)
+    expires_at_epoch=$(jq -r '.expires_at_epoch // 0' "$BOT_RISK_FILE" 2>/dev/null)
+
+    [ "$active" = "true" ] && [ "$expires_at_epoch" -gt "$(utc_now_epoch)" ]
+}
+
+quota_date_today() {
+    date -u '+%Y-%m-%d'
+}
+
+current_search_quota_count() {
+    local today stored_day stored_count
+    today=$(quota_date_today)
+
+    if [ -f "$SEARCH_QUOTA_FILE" ]; then
+        stored_day=$(jq -r '.date // ""' "$SEARCH_QUOTA_FILE" 2>/dev/null)
+        stored_count=$(jq -r '.count // 0' "$SEARCH_QUOTA_FILE" 2>/dev/null)
+        if [ "$stored_day" = "$today" ]; then
+            echo "$stored_count"
+            return
+        fi
+    fi
+
+    echo 0
+}
+
+write_search_quota_count() {
+    local new_count=$1
+    jq -n \
+        --arg date "$(quota_date_today)" \
+        --arg updated_at "$(utc_now_iso)" \
+        --argjson count "$new_count" \
+        --argjson limit "$SEARCH_DAILY_QUOTA" \
+        '{
+            date: $date,
+            count: $count,
+            limit: $limit,
+            updated_at: $updated_at
+        }' > "${SEARCH_QUOTA_FILE}.tmp" && mv "${SEARCH_QUOTA_FILE}.tmp" "$SEARCH_QUOTA_FILE"
+}
+
+can_run_search() {
+    [ "$(current_search_quota_count)" -lt "$SEARCH_DAILY_QUOTA" ]
+}
+
+consume_search_quota() {
+    local current_count next_count
+    current_count=$(current_search_quota_count)
+    next_count=$((current_count + 1))
+    write_search_quota_count "$next_count"
+    log "$MODULE_NAME" "INFO " "Google Search 配额已使用 ${next_count}/${SEARCH_DAILY_QUOTA} 次。"
+}
+
+response_triggers_bot_risk() {
+    local http_code=$1
+    local response_file=$2
+    local target_url=$3
+
+    if [ "$http_code" = "403" ] || [ "$http_code" = "429" ]; then
+        write_bot_risk_file "http_${http_code}" "$http_code" "$target_url"
+        return 0
+    fi
+
+    if [ -f "$response_file" ] && grep -Eiq 'captcha|recaptcha|unusual traffic|sorry/index|verify you are not a robot|our systems have detected unusual traffic' "$response_file"; then
+        write_bot_risk_file "captcha_or_unusual_traffic" "$http_code" "$target_url"
+        return 0
+    fi
+
+    return 1
+}
+
 get_random_coord() {
     local base=$1
     local range=$2 
@@ -127,7 +269,24 @@ if [[ -n "$BIND_IP" && "$BIND_IP" =~ ^[0-9a-fA-F:\.]+$ ]]; then
     fi
 fi
 
+ensure_state_dir
+if [ ! -f "$BOT_RISK_FILE" ]; then
+    jq -n --arg updated_at "$(utc_now_iso)" '{active: false, reason: null, updated_at: $updated_at}' > "$BOT_RISK_FILE"
+fi
+
+if bot_risk_active; then
+    BOT_RISK_UNTIL=$(jq -r '.expires_at // ""' "$BOT_RISK_FILE" 2>/dev/null)
+    log "$MODULE_NAME" "WARN " "检测到 BOT_RISK 冷却中，暂停全部 Google 行为，冷却截止: ${BOT_RISK_UNTIL:-未知}"
+    exit 0
+fi
+
 # --- [行为循环模拟] ---
+SEARCH_ENABLED="true"
+if ! can_run_search; then
+    SEARCH_ENABLED="false"
+    log "$MODULE_NAME" "WARN " "Google Search 当日配额已耗尽 (${SEARCH_DAILY_QUOTA} 次)，本轮只执行非 Search 行为。"
+fi
+
 for ((i=1; i<=TOTAL_ACTIONS; i++)); do
     # 模拟真实移动设备拿在手里时的 GPS 信号微抖动 (范围约 10 米)
     ACTION_LAT=$(get_random_coord $SESSION_BASE_LAT 1)
@@ -139,20 +298,51 @@ for ((i=1; i<=TOTAL_ACTIONS; i++)); do
     
     # 随机选择一种上网行为
     ACTION_TYPE=$((1 + RANDOM % 4))
+    if [ "$SEARCH_ENABLED" != "true" ] && [ "$ACTION_TYPE" -eq 1 ]; then
+        ACTION_TYPE=$((2 + RANDOM % 3))
+    fi
     
     # [V3.2.1 热修复] 注入 $CURL_BIND_OPT 与 $DYNAMIC_IP_PREF 协议自适应
     case $ACTION_TYPE in
         1) # 搜索行为
-            CODE=$(curl $CURL_BIND_OPT $DYNAMIC_IP_PREF -m 15 -s -L -o /dev/null -w "%{http_code}" -A "$SESSION_UA" \
-                 "https://www.google.com/search?q=${ENCODED_KEY}&${LANG_PARAMS}")
+            SEARCH_URL="https://www.google.com/search?q=${ENCODED_KEY}&${LANG_PARAMS}"
+            SEARCH_BODY=$(mktemp)
+            consume_search_quota
+            CODE=$(curl $CURL_BIND_OPT $DYNAMIC_IP_PREF -m 15 -s -L -o "$SEARCH_BODY" -w "%{http_code}" -A "$SESSION_UA" \
+                 "$SEARCH_URL")
+            if response_triggers_bot_risk "$CODE" "$SEARCH_BODY" "$SEARCH_URL"; then
+                rm -f "$SEARCH_BODY"
+                log "$MODULE_NAME" "WARN " "Google Search 命中风控信号，已写入 BOT_RISK 并立即结束本轮会话。"
+                exit 0
+            fi
+            rm -f "$SEARCH_BODY"
+            if ! can_run_search; then
+                SEARCH_ENABLED="false"
+            fi
             ;;
         2) # 浏览本土新闻
-            CODE=$(curl $CURL_BIND_OPT $DYNAMIC_IP_PREF -m 15 -s -L -o /dev/null -w "%{http_code}" -A "$SESSION_UA" \
-                 "https://news.google.com/home?${LANG_PARAMS}")
+            NEWS_URL="https://news.google.com/home?${LANG_PARAMS}"
+            NEWS_BODY=$(mktemp)
+            CODE=$(curl $CURL_BIND_OPT $DYNAMIC_IP_PREF -m 15 -s -L -o "$NEWS_BODY" -w "%{http_code}" -A "$SESSION_UA" \
+                 "$NEWS_URL")
+            if response_triggers_bot_risk "$CODE" "$NEWS_BODY" "$NEWS_URL"; then
+                rm -f "$NEWS_BODY"
+                log "$MODULE_NAME" "WARN " "Google News 命中风控信号，已写入 BOT_RISK 并立即结束本轮会话。"
+                exit 0
+            fi
+            rm -f "$NEWS_BODY"
             ;;
         3) # 地图坐标查询
-            CODE=$(curl $CURL_BIND_OPT $DYNAMIC_IP_PREF -m 15 -s -o /dev/null -w "%{http_code}" -A "$SESSION_UA" \
-                 "https://www.google.com/maps/search/$${ENCODED_KEY}/@${ACTION_LAT},${ACTION_LON},17z?${LANG_PARAMS}")
+            MAPS_URL="https://www.google.com/maps/search/${ENCODED_KEY}/@${ACTION_LAT},${ACTION_LON},17z?${LANG_PARAMS}"
+            MAPS_BODY=$(mktemp)
+            CODE=$(curl $CURL_BIND_OPT $DYNAMIC_IP_PREF -m 15 -s -L -o "$MAPS_BODY" -w "%{http_code}" -A "$SESSION_UA" \
+                 "$MAPS_URL")
+            if response_triggers_bot_risk "$CODE" "$MAPS_BODY" "$MAPS_URL"; then
+                rm -f "$MAPS_BODY"
+                log "$MODULE_NAME" "WARN " "Google Maps 命中风控信号，已写入 BOT_RISK 并立即结束本轮会话。"
+                exit 0
+            fi
+            rm -f "$MAPS_BODY"
             ;;
         4) # 触发移动端系统底层位置检测像素
             CODE=$(curl $CURL_BIND_OPT $DYNAMIC_IP_PREF -m 10 -s -o /dev/null -w "%{http_code}" -A "$SESSION_UA" \
@@ -181,7 +371,15 @@ done
 log "$MODULE_NAME" "INFO " "启动三核交叉验证 (URL跳转 + YT Premium + YT Music) 穿透获取 GeoIP..."
 
 # 核心 1: 传统 URL 跳转探测 (请求 www 才能触发准确跳转)
-JUMP_HDR=$(curl $CURL_BIND_OPT $DYNAMIC_IP_PREF -m 10 -sI "http://www.google.com/")
+JUMP_HDR_FILE=$(mktemp)
+JUMP_CODE=$(curl $CURL_BIND_OPT $DYNAMIC_IP_PREF -m 10 -sI -D "$JUMP_HDR_FILE" -o /dev/null -w "%{http_code}" "http://www.google.com/")
+if response_triggers_bot_risk "$JUMP_CODE" "$JUMP_HDR_FILE" "http://www.google.com/"; then
+    rm -f "$JUMP_HDR_FILE"
+    log "$MODULE_NAME" "WARN " "Google Jump 探针命中风控信号，已写入 BOT_RISK 并立即结束本轮会话。"
+    exit 0
+fi
+JUMP_HDR=$(cat "$JUMP_HDR_FILE")
+rm -f "$JUMP_HDR_FILE"
 JUMP_LOC=$(echo "$JUMP_HDR" | grep -i "^location:" | tr -d '\r\n')
 JUMP_GL=""
 
@@ -229,7 +427,15 @@ fi
 # 核心 2: YouTube Premium 探测
 YT_PR_GL=""
 # [修复] 必须带上本轮循环的专属 UA (-A "$SESSION_UA")，防止被 Google CDN 丢进无状态爬虫兜底页
-YT_PR_HTML=$(curl $CURL_BIND_OPT $DYNAMIC_IP_PREF -m 10 -s -L -A "$SESSION_UA" "https://www.youtube.com/premium")
+YT_PR_BODY=$(mktemp)
+YT_PR_CODE=$(curl $CURL_BIND_OPT $DYNAMIC_IP_PREF -m 10 -s -L -A "$SESSION_UA" -o "$YT_PR_BODY" -w "%{http_code}" "https://www.youtube.com/premium")
+if response_triggers_bot_risk "$YT_PR_CODE" "$YT_PR_BODY" "https://www.youtube.com/premium"; then
+    rm -f "$YT_PR_BODY"
+    log "$MODULE_NAME" "WARN " "YouTube Premium 探针命中风控信号，已写入 BOT_RISK 并立即结束本轮会话。"
+    exit 0
+fi
+YT_PR_HTML=$(cat "$YT_PR_BODY")
+rm -f "$YT_PR_BODY"
 if [[ "$YT_PR_HTML" == *"www.google.cn"* ]]; then
     YT_PR_GL="CN"
 else
@@ -242,7 +448,15 @@ fi
 # 核心 3: YouTube Music 探测
 YT_MU_GL=""
 # [修复] 同样加持 UA 装甲，强行唤出完整版前端框架
-YT_MU_HTML=$(curl $CURL_BIND_OPT $DYNAMIC_IP_PREF -m 10 -s -L -A "$SESSION_UA" "https://music.youtube.com/")
+YT_MU_BODY=$(mktemp)
+YT_MU_CODE=$(curl $CURL_BIND_OPT $DYNAMIC_IP_PREF -m 10 -s -L -A "$SESSION_UA" -o "$YT_MU_BODY" -w "%{http_code}" "https://music.youtube.com/")
+if response_triggers_bot_risk "$YT_MU_CODE" "$YT_MU_BODY" "https://music.youtube.com/"; then
+    rm -f "$YT_MU_BODY"
+    log "$MODULE_NAME" "WARN " "YouTube Music 探针命中风控信号，已写入 BOT_RISK 并立即结束本轮会话。"
+    exit 0
+fi
+YT_MU_HTML=$(cat "$YT_MU_BODY")
+rm -f "$YT_MU_BODY"
 if [[ "$YT_MU_HTML" == *"www.google.cn"* ]]; then
     YT_MU_GL="CN"
 else

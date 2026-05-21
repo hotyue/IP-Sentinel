@@ -1,0 +1,10 @@
+{
+  "active": false,
+  "reason": null,
+  "http_status": null,
+  "target_url": null,
+  "detected_at": null,
+  "expires_at": null,
+  "expires_at_epoch": 0,
+  "cooldown_hours": 72
+}

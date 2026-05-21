@@ -1,6 +1,6 @@
 phase_id,phase_title,status,branch,summary,validation,updated_at
 phase-0,建立安全分支与基线,done,feat/geoanchor-optimization,"已创建功能分支；已生成 baseline/quality-before.txt、baseline/google-before.txt、baseline/dns-before.txt；已建立阶段进度记录表。","git ls-files --eol 显示 core shell 脚本工作区为 CRLF；对 mod_google.sh、mod_quality.sh、runner.sh 进行 CRLF 归一化后 bash -n 均通过。","2026-05-21T02:20:00-07:00"
-phase-1,热修复与安全限频,pending,feat/geoanchor-optimization,"待执行：修复 Maps URL、加入 Search quota 与 bot risk。","待执行","2026-05-21T02:20:00-07:00"
+phase-1,热修复与安全限频,done,feat/geoanchor-optimization,"已修复 mod_google.sh 中的 Maps URL；已加入每日 Search quota、BOT_RISK 状态文件与 403/429/CAPTCHA 风控拦截；runner 已在 BOT_RISK 冷却期自动跳过 Google 模块。","归一化 bash -n 通过；Maps URL 定向校验通过；quota 限制、429 触发 BOT_RISK、runner 跳过 Google 的定向自测均通过。","2026-05-21T02:45:00-07:00"
 phase-2,Preflight 模块,pending,feat/geoanchor-optimization,"待执行：新增 core/preflight.sh 并接入 runner。","待执行","2026-05-21T02:20:00-07:00"
 phase-3,GeoScore 探针模块,pending,feat/geoanchor-optimization,"待执行：新增 core/mod_probe.sh 并写入评分历史。","待执行","2026-05-21T02:20:00-07:00"
 phase-4,状态机模块,pending,feat/geoanchor-optimization,"待执行：新增 core/mod_state.py。","待执行","2026-05-21T02:20:00-07:00"

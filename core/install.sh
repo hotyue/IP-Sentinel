@@ -298,6 +298,7 @@ if [ "$UPGRADE_MODE" == "false" ]; then
     mkdir -p "${INSTALL_DIR}/data/keywords"
     mkdir -p "${INSTALL_DIR}/data/regions/${COUNTRY_ID}/${STATE_ID}"
     mkdir -p "${INSTALL_DIR}/logs"
+    mkdir -p "${INSTALL_DIR}/state"
 
     # 3. 功能模块前置开关 (v3.5.3 默认全量加载，后续经由 TG 动态启停)
     echo -e "\n[3/7] 正在初始化养护模块 (默认全量部署，支持 TG 远程动态启停)..."
@@ -627,6 +628,7 @@ fi
 # 6. 拉取全套组件 (原子化升级，防断网变砖)
 echo -e "\n[6/7] 正在部署核心引擎与热数据..."
 mkdir -p "${INSTALL_DIR}/data/keywords"
+mkdir -p "${INSTALL_DIR}/state"
 
 # [核心修复] 开辟临时下载区，确保下载 100% 成功后再替换旧核心
 TMP_CORE="${SECURE_TMP}/core_update"
