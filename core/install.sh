@@ -670,6 +670,7 @@ curl -sL "${REPO_RAW_URL}/core/mod_probe.sh" -o "${TMP_CORE}/mod_probe.sh"
 curl -sL "${REPO_RAW_URL}/core/mod_state.py" -o "${TMP_CORE}/mod_state.py"
 curl -sL "${REPO_RAW_URL}/core/mod_anchor_browser.py" -o "${TMP_CORE}/mod_anchor_browser.py"
 curl -sL "${REPO_RAW_URL}/core/mod_local_trust.py" -o "${TMP_CORE}/mod_local_trust.py"
+curl -sL "${REPO_RAW_URL}/core/runner_v2.sh" -o "${TMP_CORE}/runner_v2.sh"
 curl -sL "${REPO_RAW_URL}/core/updater.sh" -o "${TMP_CORE}/updater.sh"
 curl -sL "${REPO_RAW_URL}/core/tg_report.sh" -o "${TMP_CORE}/tg_report.sh"
 curl -sL "${REPO_RAW_URL}/core/agent_daemon.sh" -o "${TMP_CORE}/agent_daemon.sh"
@@ -679,7 +680,7 @@ curl -sL "${REPO_RAW_URL}/core/mod_trust.sh" -o "${TMP_CORE}/mod_trust.sh"
 curl -sL "${REPO_RAW_URL}/core/mod_quality.sh" -o "${TMP_CORE}/mod_quality.sh"
 
 # 🛡️ 防砖终极校验：检查关键文件是否真实存在且不为空
-if [ ! -s "${TMP_CORE}/runner.sh" ] || [ ! -s "${TMP_CORE}/preflight.sh" ] || [ ! -s "${TMP_CORE}/mod_probe.sh" ] || [ ! -s "${TMP_CORE}/mod_state.py" ] || [ ! -s "${TMP_CORE}/mod_anchor_browser.py" ] || [ ! -s "${TMP_CORE}/mod_local_trust.py" ] || [ ! -s "${TMP_CORE}/agent_daemon.sh" ]; then
+if [ ! -s "${TMP_CORE}/runner.sh" ] || [ ! -s "${TMP_CORE}/runner_v2.sh" ] || [ ! -s "${TMP_CORE}/preflight.sh" ] || [ ! -s "${TMP_CORE}/mod_probe.sh" ] || [ ! -s "${TMP_CORE}/mod_state.py" ] || [ ! -s "${TMP_CORE}/mod_anchor_browser.py" ] || [ ! -s "${TMP_CORE}/mod_local_trust.py" ] || [ ! -s "${TMP_CORE}/agent_daemon.sh" ]; then
     echo -e "\033[31m❌ 致命错误：核心代码拉取失败！网络阻断或 GitHub Raw 异常。\033[0m"
     echo "🛡️ 防砖机制触发：已中止覆盖，旧版哨兵引擎仍安全存活中。"
     rm -rf "$TMP_CORE"
@@ -696,6 +697,7 @@ fi
 pkill -9 -f "webhook.py" >/dev/null 2>&1 || true
 pkill -9 -f "agent_daemon.sh" >/dev/null 2>&1 || true
 pkill -9 -f "runner.sh" >/dev/null 2>&1 || true
+pkill -9 -f "runner_v2.sh" >/dev/null 2>&1 || true
 pkill -9 -f "tg_report.sh" >/dev/null 2>&1 || true
 pkill -9 -f "updater.sh" >/dev/null 2>&1 || true
 pkill -9 -f "sentinel_scheduler.sh" >/dev/null 2>&1 || true
@@ -772,7 +774,7 @@ After=network.target
 Environment="PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
 SyslogIdentifier=ip-sentinel
 Type=oneshot
-ExecStart=/bin/bash ${INSTALL_DIR}/core/runner.sh
+ExecStart=/bin/bash ${INSTALL_DIR}/core/runner_v2.sh
 User=root
 CPUSchedulingPolicy=idle
 IOSchedulingClass=idle
@@ -912,7 +914,7 @@ while true; do
     HOUR=\$(date -u +%H)
     # [频率优化] 匹配 20 分钟步进 (00, 20, 40)
     if [ "\$MIN" == "00" ] || [ "\$MIN" == "20" ] || [ "\$MIN" == "40" ]; then
-        /bin/bash /opt/ip_sentinel/core/runner.sh >/dev/null 2>&1
+        /bin/bash /opt/ip_sentinel/core/runner_v2.sh >/dev/null 2>&1
     fi
     # [绝对 UTC 锚点] 基于部署时刻的锚点触发热数据更新，天然并发削峰
     if [ "\$HOUR" == "${DEPLOY_UTC_HOUR}" ] && [ "\$MIN" == "${DEPLOY_UTC_MIN}" ]; then
@@ -950,7 +952,7 @@ EOF
             # ==========================================
             crontab -l 2>/dev/null | grep -v "ip_sentinel" > "${SECURE_TMP}/cron_backup" || true
             # [频率优化] 调整为 */20
-            echo "*/20 * * * * ${INSTALL_DIR}/core/runner.sh >/dev/null 2>&1" >> "${SECURE_TMP}/cron_backup"
+            echo "*/20 * * * * ${INSTALL_DIR}/core/runner_v2.sh >/dev/null 2>&1" >> "${SECURE_TMP}/cron_backup"
             # [绝对 UTC 锚点] 每天精确在部署的 UTC 时刻触发
             echo "${DEPLOY_UTC_MIN} ${DEPLOY_UTC_HOUR} * * * ${INSTALL_DIR}/core/updater.sh >/dev/null 2>&1" >> "${SECURE_TMP}/cron_backup"
             
