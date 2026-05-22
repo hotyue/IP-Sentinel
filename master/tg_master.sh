@@ -200,6 +200,19 @@ while true; do
                 fi
             fi
 
+            DIRECT_CMD=$(echo "$TEXT" | awk '{print $1}')
+            case "$DIRECT_CMD" in
+                /status|/status@*|/score|/score@*|/preflight|/preflight@*|/probe|/probe@*|/anchor|/anchor@*|/trust|/trust@*|/cooldown|/cooldown@*|/resume|/resume@*)
+                    TARGET_NODE=$(echo "$TEXT" | awk '{print $2}' | tr -cd 'a-zA-Z0-9_.-')
+                    ACTION_NAME=$(echo "$DIRECT_CMD" | cut -d'@' -f1 | sed 's#^/##')
+                    if [ -z "$TARGET_NODE" ]; then
+                        send_msg "$CHAT_ID" "⚠️ 请指定目标节点。例如: \`${DIRECT_CMD%%@*} HK-1\`%0A或通过雷达面板点选节点后操作。"
+                        continue
+                    fi
+                    TEXT="${ACTION_NAME}:${TARGET_NODE}"
+                    ;;
+            esac
+
             # ================== [v3.0.1 新增: 消除转圈圈与获取消息ID] ==================
             # 告诉 TG 官方“指令已收到”，立刻消除按钮上的加载圈圈 (对其他常规按钮生效)
             if [ -n "$CB_ID" ]; then
@@ -555,7 +568,7 @@ while true; do
                     [ "$ST_TRUST" == "true" ] && BTN_T="🟢 信用净化: 已开" && ACT_T="false" || { BTN_T="🔴 信用净化: 已停"; ACT_T="true"; }
 
                     # 模块一：即时战术动作 (V4.0.0 引入深海声呐与趋势面板)
-                    BTN_ACTION="[{\"text\":\"📍 触发 Google 纠偏\",\"callback_data\":\"google:$TARGET_NODE\"}, {\"text\":\"🛡️ 触发信用净化\",\"callback_data\":\"trust:$TARGET_NODE\"}], [{\"text\":\"🔍 投放深海声呐 (查IP质量)\",\"callback_data\":\"quality:$TARGET_NODE\"}, {\"text\":\"📈 查看 IP 污染趋势图\",\"callback_data\":\"trend:$TARGET_NODE\"}], [{\"text\":\"📜 提取终端实时日志\",\"callback_data\":\"log:$TARGET_NODE\"}, {\"text\":\"📊 生成单机战报\",\"callback_data\":\"report:$TARGET_NODE\"}]"
+                    BTN_ACTION="[{\"text\":\"🛰️ 查看 Geo 状态\",\"callback_data\":\"status:$TARGET_NODE\"}, {\"text\":\"📈 查看 GeoScore 趋势\",\"callback_data\":\"score:$TARGET_NODE\"}], [{\"text\":\"🧭 执行 Preflight\",\"callback_data\":\"preflight:$TARGET_NODE\"}, {\"text\":\"🔎 执行轻量 Probe\",\"callback_data\":\"probe:$TARGET_NODE\"}], [{\"text\":\"🌐 执行 Browser Anchor\",\"callback_data\":\"anchor:$TARGET_NODE\"}, {\"text\":\"🏛️ 执行 Local Trust\",\"callback_data\":\"trust:$TARGET_NODE\"}], [{\"text\":\"🥶 手动进入冷却\",\"callback_data\":\"cooldown:$TARGET_NODE\"}, {\"text\":\"▶️ 解除冷却\",\"callback_data\":\"resume:$TARGET_NODE\"}], [{\"text\":\"📍 触发 Google 纠偏\",\"callback_data\":\"google:$TARGET_NODE\"}, {\"text\":\"🔍 投放深海声呐 (查IP质量)\",\"callback_data\":\"quality:$TARGET_NODE\"}], [{\"text\":\"📜 提取终端实时日志\",\"callback_data\":\"log:$TARGET_NODE\"}, {\"text\":\"📊 生成单机战报\",\"callback_data\":\"report:$TARGET_NODE\"}]"
                     
                     # 模块二：养护状态启停
                     BTN_TOGGLE="[{\"text\":\"$BTN_G\",\"callback_data\":\"toggle:google:$TARGET_NODE:$ACT_G\"}, {\"text\":\"$BTN_T\",\"callback_data\":\"toggle:trust:$TARGET_NODE:$ACT_T\"}]"
@@ -618,8 +631,8 @@ while true; do
                             [ "$ST_GOOGLE" == "true" ] && BTN_G="🟢 Google巡逻: 已开" && ACT_G="false" || { BTN_G="🔴 Google巡逻: 已停"; ACT_G="true"; }
                             [ "$ST_TRUST" == "true" ] && BTN_T="🟢 信用净化: 已开" && ACT_T="false" || { BTN_T="🔴 信用净化: 已停"; ACT_T="true"; }
 
-                            # 模块一：即时战术动作 (V4.0.0 引入深海声呐与趋势面板)
-                    BTN_ACTION="[{\"text\":\"📍 触发 Google 纠偏\",\"callback_data\":\"google:$TARGET_NODE\"}, {\"text\":\"🛡️ 触发信用净化\",\"callback_data\":\"trust:$TARGET_NODE\"}], [{\"text\":\"🔍 投放深海声呐 (查IP质量)\",\"callback_data\":\"quality:$TARGET_NODE\"}, {\"text\":\"📈 查看 IP 污染趋势图\",\"callback_data\":\"trend:$TARGET_NODE\"}], [{\"text\":\"📜 提取终端实时日志\",\"callback_data\":\"log:$TARGET_NODE\"}, {\"text\":\"📊 生成单机战报\",\"callback_data\":\"report:$TARGET_NODE\"}]"
+                            # 模块一：即时战术动作 (GeoAnchor + 传统动作并存)
+                    BTN_ACTION="[{\"text\":\"🛰️ 查看 Geo 状态\",\"callback_data\":\"status:$TARGET_NODE\"}, {\"text\":\"📈 查看 GeoScore 趋势\",\"callback_data\":\"score:$TARGET_NODE\"}], [{\"text\":\"🧭 执行 Preflight\",\"callback_data\":\"preflight:$TARGET_NODE\"}, {\"text\":\"🔎 执行轻量 Probe\",\"callback_data\":\"probe:$TARGET_NODE\"}], [{\"text\":\"🌐 执行 Browser Anchor\",\"callback_data\":\"anchor:$TARGET_NODE\"}, {\"text\":\"🏛️ 执行 Local Trust\",\"callback_data\":\"trust:$TARGET_NODE\"}], [{\"text\":\"🥶 手动进入冷却\",\"callback_data\":\"cooldown:$TARGET_NODE\"}, {\"text\":\"▶️ 解除冷却\",\"callback_data\":\"resume:$TARGET_NODE\"}], [{\"text\":\"📍 触发 Google 纠偏\",\"callback_data\":\"google:$TARGET_NODE\"}, {\"text\":\"🔍 投放深海声呐 (查IP质量)\",\"callback_data\":\"quality:$TARGET_NODE\"}], [{\"text\":\"📜 提取终端实时日志\",\"callback_data\":\"log:$TARGET_NODE\"}, {\"text\":\"📊 生成单机战报\",\"callback_data\":\"report:$TARGET_NODE\"}]"
                             BTN_TOGGLE="[{\"text\":\"$BTN_G\",\"callback_data\":\"toggle:google:$TARGET_NODE:$ACT_G\"}, {\"text\":\"$BTN_T\",\"callback_data\":\"toggle:trust:$TARGET_NODE:$ACT_T\"}]"
                             
                             if [ "$IS_OFFICIAL_GATEWAY" != "true" ] && [ "$ST_OTA" == "true" ]; then
@@ -762,8 +775,7 @@ while true; do
                     fi
                     ;;
 
-                # 【核心升级 v4.0.0】增加拦截规则，支持 quality 前缀
-                google:*|trust:*|run:*|report:*|log:*|quality:*)
+                status:*|score:*|preflight:*|probe:*|anchor:*|trust:*|cooldown:*|resume:*)
                     # 🛡️ 提取并强制过滤动作参数、节点名与 CHAT_ID
                     ACTION_TYPE=$(echo "$TEXT" | cut -d':' -f1)
                     TARGET_NODE=$(echo "$TEXT" | cut -d':' -f2 | tr -cd 'a-zA-Z0-9_.-')
@@ -783,9 +795,51 @@ while true; do
                         
                         # 🛡️ [v3.0.4] 动态签名生成与触发 (防重放与防篡改)
                         TARGET_URL=$(generate_signed_url "$AGENT_IP" "$AGENT_PORT" "/trigger_${ACTION_TYPE}")
-                        RESPONSE=$(curl -k -s -m 5 "$TARGET_URL" || echo "FAILED")
+                        CURL_TIMEOUT=15
+                        if [ "$ACTION_TYPE" == "preflight" ] || [ "$ACTION_TYPE" == "probe" ]; then
+                            CURL_TIMEOUT=120
+                        fi
+                        RESPONSE=$(curl -k -s --connect-timeout 5 -m "$CURL_TIMEOUT" "$TARGET_URL" || echo "FAILED")
                         
                         # 结果判定
+                        if [ "$RESPONSE" == "FAILED" ]; then
+                            TEXT_RES="❌ 指令下发超时或失败！为保护链路安全，已终止通信 (严禁降级为 HTTP)。"
+                        else
+                            TEXT_RES="$RESPONSE"
+                        fi
+                        
+                        # [v3.0.1 防刷屏] 将等待状态刷新为最终结果
+                        if [ -n "$MSG_ID" ]; then
+                            edit_msg "$CHAT_ID" "$MSG_ID" "$TEXT_RES"
+                        else
+                            send_msg "$CHAT_ID" "$TEXT_RES"
+                        fi
+                    else
+                        send_msg "$CHAT_ID" "❌ 数据库中未找到该节点的通讯地址。"
+                    fi
+                    ;;
+
+                # 【核心升级 v4.0.0】增加拦截规则，支持 quality 前缀
+                google:*|run:*|report:*|log:*|quality:*)
+                    # 🛡️ 提取并强制过滤动作参数、节点名与 CHAT_ID
+                    ACTION_TYPE=$(echo "$TEXT" | cut -d':' -f1)
+                    TARGET_NODE=$(echo "$TEXT" | cut -d':' -f2 | tr -cd 'a-zA-Z0-9_.-')
+                    CHAT_ID=$(echo "$CHAT_ID" | tr -cd '0-9-')
+                    
+                    AGENT_INFO=$(db_exec "SELECT agent_ip, agent_port FROM nodes WHERE chat_id='$CHAT_ID' AND node_name='$TARGET_NODE' LIMIT 1;")
+                    AGENT_IP=$(echo "$AGENT_INFO" | cut -d'|' -f1)
+                    AGENT_PORT=$(echo "$AGENT_INFO" | cut -d'|' -f2)
+
+                    if [ -n "$AGENT_IP" ] && [ -n "$AGENT_PORT" ]; then
+                        if [ -n "$MSG_ID" ]; then
+                            edit_msg "$CHAT_ID" "$MSG_ID" "⏳ 正在向 \`$TARGET_NODE\` ($AGENT_IP) 下发 [$ACTION_TYPE] 指令，请稍候..."
+                        else
+                            send_msg "$CHAT_ID" "⏳ 正在向 \`$TARGET_NODE\` ($AGENT_IP) 下发 [$ACTION_TYPE] 指令，请稍候..."
+                        fi
+                        
+                        TARGET_URL=$(generate_signed_url "$AGENT_IP" "$AGENT_PORT" "/trigger_${ACTION_TYPE}")
+                        RESPONSE=$(curl -k -s -m 5 "$TARGET_URL" || echo "FAILED")
+                        
                         if [ "$RESPONSE" == "FAILED" ]; then
                             TEXT_RES="❌ 指令下发超时或失败！为保护链路安全，已终止通信 (严禁降级为 HTTP)。"
                         elif [[ "$RESPONSE" == *"403"* ]]; then
@@ -793,8 +847,6 @@ while true; do
                         else
                             if [ "$ACTION_TYPE" == "google" ] || [ "$ACTION_TYPE" == "run" ]; then 
                                 TEXT_RES="✅ 节点 \`$TARGET_NODE\` 回应: 📍 Google 纠偏程序启动。"
-                            elif [ "$ACTION_TYPE" == "trust" ]; then 
-                                TEXT_RES="✅ 节点 \`$TARGET_NODE\` 回应: 🛡️ IP 信用净化程序启动。"
                             elif [ "$ACTION_TYPE" == "quality" ]; then 
                                 TEXT_RES="✅ 节点 \`$TARGET_NODE\` 回应: 🔍 深海声呐已投放！请等待异步战报回传。"
                             elif [ "$ACTION_TYPE" == "log" ]; then 
@@ -804,7 +856,6 @@ while true; do
                             fi
                         fi
                         
-                        # [v3.0.1 防刷屏] 将等待状态刷新为最终结果
                         if [ -n "$MSG_ID" ]; then
                             edit_msg "$CHAT_ID" "$MSG_ID" "$TEXT_RES"
                         else

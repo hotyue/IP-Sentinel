@@ -668,6 +668,7 @@ curl -sL "${REPO_RAW_URL}/core/runner.sh" -o "${TMP_CORE}/runner.sh"
 curl -sL "${REPO_RAW_URL}/core/preflight.sh" -o "${TMP_CORE}/preflight.sh"
 curl -sL "${REPO_RAW_URL}/core/mod_probe.sh" -o "${TMP_CORE}/mod_probe.sh"
 curl -sL "${REPO_RAW_URL}/core/mod_state.py" -o "${TMP_CORE}/mod_state.py"
+curl -sL "${REPO_RAW_URL}/core/geoanchor_control.py" -o "${TMP_CORE}/geoanchor_control.py"
 curl -sL "${REPO_RAW_URL}/core/mod_anchor_browser.py" -o "${TMP_CORE}/mod_anchor_browser.py"
 curl -sL "${REPO_RAW_URL}/core/mod_local_trust.py" -o "${TMP_CORE}/mod_local_trust.py"
 curl -sL "${REPO_RAW_URL}/core/runner_v2.sh" -o "${TMP_CORE}/runner_v2.sh"
@@ -680,7 +681,7 @@ curl -sL "${REPO_RAW_URL}/core/mod_trust.sh" -o "${TMP_CORE}/mod_trust.sh"
 curl -sL "${REPO_RAW_URL}/core/mod_quality.sh" -o "${TMP_CORE}/mod_quality.sh"
 
 # 🛡️ 防砖终极校验：检查关键文件是否真实存在且不为空
-if [ ! -s "${TMP_CORE}/runner.sh" ] || [ ! -s "${TMP_CORE}/runner_v2.sh" ] || [ ! -s "${TMP_CORE}/preflight.sh" ] || [ ! -s "${TMP_CORE}/mod_probe.sh" ] || [ ! -s "${TMP_CORE}/mod_state.py" ] || [ ! -s "${TMP_CORE}/mod_anchor_browser.py" ] || [ ! -s "${TMP_CORE}/mod_local_trust.py" ] || [ ! -s "${TMP_CORE}/agent_daemon.sh" ]; then
+if [ ! -s "${TMP_CORE}/runner.sh" ] || [ ! -s "${TMP_CORE}/runner_v2.sh" ] || [ ! -s "${TMP_CORE}/preflight.sh" ] || [ ! -s "${TMP_CORE}/mod_probe.sh" ] || [ ! -s "${TMP_CORE}/mod_state.py" ] || [ ! -s "${TMP_CORE}/geoanchor_control.py" ] || [ ! -s "${TMP_CORE}/mod_anchor_browser.py" ] || [ ! -s "${TMP_CORE}/mod_local_trust.py" ] || [ ! -s "${TMP_CORE}/agent_daemon.sh" ]; then
     echo -e "\033[31m❌ 致命错误：核心代码拉取失败！网络阻断或 GitHub Raw 异常。\033[0m"
     echo "🛡️ 防砖机制触发：已中止覆盖，旧版哨兵引擎仍安全存活中。"
     rm -rf "$TMP_CORE"

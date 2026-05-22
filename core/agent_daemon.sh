@@ -72,6 +72,7 @@ import subprocess
 import sys
 import os
 import html
+import json
 # ================== [v3.0.4 新增密码学与解析依赖] ==================
 import urllib.parse
 import urllib.request
@@ -100,6 +101,54 @@ if os.path.exists('/opt/ip_sentinel/config.conf'):
             if line.startswith('CHAT_ID='):
                 AUTH_TOKEN = line.split('=', 1)[1].strip('"\'')
                 break
+
+INSTALL_DIR = '/opt/ip_sentinel'
+CONFIG_PATH = f'{INSTALL_DIR}/config.conf'
+
+def load_runtime_config():
+    config = {}
+    if os.path.exists(CONFIG_PATH):
+        with open(CONFIG_PATH, 'r', encoding='utf-8', errors='ignore') as handle:
+            for line in handle:
+                line = line.strip()
+                if '=' in line and not line.startswith('#'):
+                    key, value = line.split('=', 1)
+                    config[key] = value.strip('"\'')
+    return config
+
+def geoanchor_python_bin(config):
+    venv_root = config.get('GEOANCHOR_VENV', '')
+    if venv_root:
+        candidate = os.path.join(venv_root, 'bin', 'python')
+        if os.path.exists(candidate):
+            return candidate
+    return sys.executable
+
+def send_plain(handler, status_code, body):
+    payload = body if body.endswith('\n') else f"{body}\n"
+    handler.send_response(status_code)
+    handler.send_header("Content-type", "text/plain; charset=utf-8")
+    handler.end_headers()
+    handler.wfile.write(payload.encode('utf-8', errors='ignore'))
+
+def run_geoanchor_control(*control_args, timeout=180):
+    config = load_runtime_config()
+    script_path = f'{INSTALL_DIR}/core/geoanchor_control.py'
+    if not os.path.exists(script_path):
+        return 1, '❌ GeoAnchor 控制器缺失，请先升级 install.sh。'
+    env = os.environ.copy()
+    env['IP_SENTINEL_CONFIG'] = CONFIG_PATH
+    env['IP_SENTINEL_INSTALL_DIR'] = INSTALL_DIR
+    completed = subprocess.run(
+        [geoanchor_python_bin(config), script_path, *control_args],
+        capture_output=True,
+        text=True,
+        env=env,
+        timeout=timeout,
+        check=False,
+    )
+    output = completed.stdout.strip() or completed.stderr.strip() or '⚠️ 节点未返回任何内容。'
+    return completed.returncode, output
 
 class AgentHandler(http.server.BaseHTTPRequestHandler):
     def do_GET(self):
@@ -158,12 +207,14 @@ class AgentHandler(http.server.BaseHTTPRequestHandler):
         
         # 路由 0: 全局统筹调度
         if req_path == '/trigger_run':
-            if os.path.exists('/opt/ip_sentinel/core/runner.sh'):
-                self.send_response(200)
-                self.send_header("Content-type", "text/plain")
-                self.end_headers()
-                self.wfile.write(b"Action Accepted: runner\n")
-                os.system("nohup bash /opt/ip_sentinel/core/runner.sh >/dev/null 2>&1 &")
+            runner_v2 = '/opt/ip_sentinel/core/runner_v2.sh'
+            runner_legacy = '/opt/ip_sentinel/core/runner.sh'
+            if os.path.exists(runner_v2) or os.path.exists(runner_legacy):
+                send_plain(self, 200, "Action Accepted: runner")
+                if os.path.exists(runner_v2):
+                    os.system("nohup bash /opt/ip_sentinel/core/runner_v2.sh >/dev/null 2>&1 &")
+                else:
+                    os.system("nohup bash /opt/ip_sentinel/core/runner.sh >/dev/null 2>&1 &")
             else:
                 self.send_response(404)
                 self.end_headers()
@@ -184,17 +235,42 @@ class AgentHandler(http.server.BaseHTTPRequestHandler):
 
         # 路由 2: IP 信用净化
         elif req_path == '/trigger_trust':
-            if os.path.exists('/opt/ip_sentinel/core/mod_trust.sh'):
-                self.send_response(200)
-                self.send_header("Content-type", "text/plain")
-                self.end_headers()
-                self.wfile.write(b"Action Accepted: mod_trust\n")
-                os.system("nohup bash /opt/ip_sentinel/core/mod_trust.sh >/dev/null 2>&1 &")
+            if os.path.exists('/opt/ip_sentinel/core/geoanchor_control.py'):
+                _, body = run_geoanchor_control('trust', timeout=30)
+                send_plain(self, 200, body)
             else:
                 self.send_response(403)
                 self.send_header("Content-type", "text/plain")
                 self.end_headers()
                 self.wfile.write(b"403 Forbidden: Trust Module Disabled\n")
+
+        elif req_path == '/trigger_status':
+            _, body = run_geoanchor_control('status', timeout=15)
+            send_plain(self, 200, body)
+
+        elif req_path == '/trigger_score':
+            _, body = run_geoanchor_control('score', timeout=15)
+            send_plain(self, 200, body)
+
+        elif req_path == '/trigger_preflight':
+            _, body = run_geoanchor_control('preflight', timeout=90)
+            send_plain(self, 200, body)
+
+        elif req_path == '/trigger_probe':
+            _, body = run_geoanchor_control('probe', timeout=120)
+            send_plain(self, 200, body)
+
+        elif req_path == '/trigger_anchor':
+            _, body = run_geoanchor_control('anchor', timeout=30)
+            send_plain(self, 200, body)
+
+        elif req_path == '/trigger_cooldown':
+            _, body = run_geoanchor_control('cooldown', timeout=15)
+            send_plain(self, 200, body)
+
+        elif req_path == '/trigger_resume':
+            _, body = run_geoanchor_control('resume', timeout=15)
+            send_plain(self, 200, body)
 
         # 路由 3: 触发战报推送
         elif req_path == '/trigger_report':
@@ -236,7 +312,6 @@ class AgentHandler(http.server.BaseHTTPRequestHandler):
                 text_msg = f"📄 <b>[{node_alias}] 实时日志 (v{local_ver}):</b>\n<pre><code>{log_data}</code></pre>"
                 
                 # [v4.0.3 体验升级] 引入 json 模块并改用 JSON Payload，挂载返回控制台按钮
-                import json
                 node_name_cb = config.get('NODE_NAME', 'Unknown')
                 payload = {
                     'chat_id': config.get('CHAT_ID', ''),
