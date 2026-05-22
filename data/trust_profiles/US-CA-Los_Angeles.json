@@ -1,0 +1,62 @@
+{
+  "profile_id": "US-CA-Los_Angeles",
+  "country": "US",
+  "state": "CA",
+  "city": "Los_Angeles",
+  "timezone": "America/Los_Angeles",
+  "locale": "en-US",
+  "tiers": {
+    "public_services": {
+      "weight": 40,
+      "urls": [
+        "https://www.lacity.gov/",
+        "https://lacounty.gov/",
+        "https://www.ca.gov/",
+        "https://www.metro.net/",
+        "https://www.weather.gov/lox/",
+        "https://www.usps.com/"
+      ]
+    },
+    "education": {
+      "weight": 25,
+      "urls": [
+        "https://www.ucla.edu/",
+        "https://www.usc.edu/",
+        "https://www.caltech.edu/",
+        "https://www.lapl.org/"
+      ]
+    },
+    "local_media": {
+      "weight": 20,
+      "urls": [
+        "https://laist.com/",
+        "https://ktla.com/",
+        "https://abc7.com/",
+        "https://www.latimes.com/"
+      ]
+    },
+    "national_public": {
+      "weight": 15,
+      "urls": [
+        "https://www.usa.gov/",
+        "https://www.cdc.gov/",
+        "https://www.irs.gov/",
+        "https://www.npr.org/"
+      ]
+    }
+  },
+  "blocked_patterns": [
+    "login",
+    "signin",
+    "cart",
+    "checkout",
+    "account",
+    "banking",
+    "bank",
+    "amazon.",
+    "walmart.",
+    "target.",
+    "chase.",
+    "payment"
+  ]
+}

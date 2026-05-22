@@ -11,7 +11,7 @@ import sys
 import time
 from pathlib import Path
 from typing import Any
-from urllib.parse import parse_qs
+from urllib.parse import parse_qs, urlparse
 
 
 RISK_PATTERNS = (
@@ -156,9 +156,46 @@ def load_json_file(path: Path | None) -> dict[str, Any]:
     return json.loads(path.read_text(encoding="utf-8"))
 
 
+def resolve_trust_profile_path(trust_profile_arg: str | None, install_dir: Path, config: dict[str, str]) -> Path | None:
+    if trust_profile_arg:
+        return Path(trust_profile_arg)
+
+    configured_path = config.get("TRUST_PROFILE_FILE", "")
+    if configured_path:
+        candidate = Path(configured_path)
+        if candidate.exists():
+            return candidate
+
+    target_country = normalize_country_code(config.get("TARGET_COUNTRY") or config.get("REGION_CODE"))
+    target_state = config.get("TARGET_STATE", "Default")
+    target_city = config.get("TARGET_CITY", "")
+    if not target_country or not target_city:
+        return None
+
+    candidate = install_dir / "data" / "trust_profiles" / f"{target_country}-{target_state}-{target_city}.json"
+    if candidate.exists():
+        return candidate
+    return None
+
+
+def is_allowed_public_url(url: str, extra_blocked_patterns: tuple[str, ...] = ()) -> bool:
+    lower = url.lower()
+    blocked_patterns = tuple(pattern.lower() for pattern in BLOCKED_TRUST_PATTERNS) + tuple(pattern.lower() for pattern in extra_blocked_patterns)
+    if any(pattern in lower for pattern in blocked_patterns):
+        return False
+
+    parsed = urlparse(url)
+    if parsed.query:
+        return False
+
+    segments = [segment for segment in parsed.path.split("/") if segment]
+    return len(segments) <= 1
+
+
 def choose_public_urls(region: dict[str, Any], trust_profile: dict[str, Any]) -> list[str]:
     urls: list[str] = []
     tiers = trust_profile.get("tiers", {})
+    extra_blocked_patterns = tuple(str(pattern) for pattern in trust_profile.get("blocked_patterns", []) if isinstance(pattern, str))
     if isinstance(tiers, dict):
         for tier in tiers.values():
             urls.extend(url for url in tier.get("urls", []) if isinstance(url, str))
@@ -170,8 +207,7 @@ def choose_public_urls(region: dict[str, Any], trust_profile: dict[str, Any]) ->
     filtered: list[str] = []
     seen: set[str] = set()
     for url in urls:
-        lower = url.lower()
-        if any(pattern in lower for pattern in BLOCKED_TRUST_PATTERNS):
+        if not is_allowed_public_url(url, extra_blocked_patterns):
             continue
         if url not in seen:
             seen.add(url)
@@ -312,7 +348,7 @@ def main() -> int:
     install_dir = Path(config.get("INSTALL_DIR", "/opt/ip_sentinel"))
     log_path = install_dir / "logs" / "anchor_browser.log"
     region_path = resolve_region_path(args, install_dir, config)
-    trust_profile_path = Path(args.trust_profile) if args.trust_profile else None
+    trust_profile_path = resolve_trust_profile_path(args.trust_profile, install_dir, config)
     region = load_json_file(region_path)
     trust_profile = load_json_file(trust_profile_path)
 

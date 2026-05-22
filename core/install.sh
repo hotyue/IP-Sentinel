@@ -297,6 +297,7 @@ if [ "$UPGRADE_MODE" == "false" ]; then
     mkdir -p "${INSTALL_DIR}/core"
     mkdir -p "${INSTALL_DIR}/data/keywords"
     mkdir -p "${INSTALL_DIR}/data/regions/${COUNTRY_ID}/${STATE_ID}"
+    mkdir -p "${INSTALL_DIR}/data/trust_profiles"
     mkdir -p "${INSTALL_DIR}/logs"
     mkdir -p "${INSTALL_DIR}/state"
 
@@ -532,6 +533,7 @@ BASE_LAT="$BASE_LAT"
 BASE_LON="$BASE_LON"
 LANG_PARAMS="$LANG_PARAMS"
 VALID_URL_SUFFIX="$VALID_URL_SUFFIX"
+TRUST_PROFILE_FILE="${INSTALL_DIR}/data/trust_profiles/${COUNTRY_ID}-${STATE_ID}-${CITY_ID}.json"
 
 # 模块开关状态
 ENABLE_GOOGLE="$ENABLE_GOOGLE"
@@ -638,13 +640,24 @@ if [ "$UPGRADE_MODE" == "true" ]; then
     if ! grep -q "^TARGET_CITY=" "$CONFIG_FILE"; then
         echo "TARGET_CITY=\"$(printf '%s' "${REGION_NAME##* - }" | tr ' ' '_')\"" >> "$CONFIG_FILE"
     fi
+    if ! grep -q "^TRUST_PROFILE_FILE=" "$CONFIG_FILE"; then
+        echo "TRUST_PROFILE_FILE=\"${INSTALL_DIR}/data/trust_profiles/${TARGET_COUNTRY:-${REGION_CODE%%-*}}-${TARGET_STATE:-Default}-${TARGET_CITY:-$(printf '%s' "${REGION_NAME##* - }" | tr ' ' '_')}.json\"" >> "$CONFIG_FILE"
+    fi
 fi
 # ========================================================================
 
 # 6. 拉取全套组件 (原子化升级，防断网变砖)
 echo -e "\n[6/7] 正在部署核心引擎与热数据..."
 mkdir -p "${INSTALL_DIR}/data/keywords"
+mkdir -p "${INSTALL_DIR}/data/trust_profiles"
 mkdir -p "${INSTALL_DIR}/state"
+
+if [ -n "${TARGET_COUNTRY:-}" ] && [ -n "${TARGET_STATE:-}" ] && [ -n "${TARGET_CITY:-}" ]; then
+    TRUST_PROFILE_REMOTE="${REPO_RAW_URL}/data/trust_profiles/${TARGET_COUNTRY}-${TARGET_STATE}-${TARGET_CITY}.json"
+    TRUST_PROFILE_LOCAL="${INSTALL_DIR}/data/trust_profiles/${TARGET_COUNTRY}-${TARGET_STATE}-${TARGET_CITY}.json"
+    curl -sL "${TRUST_PROFILE_REMOTE}" -o "${TRUST_PROFILE_LOCAL}" 2>/dev/null || true
+    [ -s "${TRUST_PROFILE_LOCAL}" ] || rm -f "${TRUST_PROFILE_LOCAL}" 2>/dev/null
+fi
 
 # [核心修复] 开辟临时下载区，确保下载 100% 成功后再替换旧核心
 TMP_CORE="${SECURE_TMP}/core_update"
@@ -656,6 +669,7 @@ curl -sL "${REPO_RAW_URL}/core/preflight.sh" -o "${TMP_CORE}/preflight.sh"
 curl -sL "${REPO_RAW_URL}/core/mod_probe.sh" -o "${TMP_CORE}/mod_probe.sh"
 curl -sL "${REPO_RAW_URL}/core/mod_state.py" -o "${TMP_CORE}/mod_state.py"
 curl -sL "${REPO_RAW_URL}/core/mod_anchor_browser.py" -o "${TMP_CORE}/mod_anchor_browser.py"
+curl -sL "${REPO_RAW_URL}/core/mod_local_trust.py" -o "${TMP_CORE}/mod_local_trust.py"
 curl -sL "${REPO_RAW_URL}/core/updater.sh" -o "${TMP_CORE}/updater.sh"
 curl -sL "${REPO_RAW_URL}/core/tg_report.sh" -o "${TMP_CORE}/tg_report.sh"
 curl -sL "${REPO_RAW_URL}/core/agent_daemon.sh" -o "${TMP_CORE}/agent_daemon.sh"
@@ -665,7 +679,7 @@ curl -sL "${REPO_RAW_URL}/core/mod_trust.sh" -o "${TMP_CORE}/mod_trust.sh"
 curl -sL "${REPO_RAW_URL}/core/mod_quality.sh" -o "${TMP_CORE}/mod_quality.sh"
 
 # 🛡️ 防砖终极校验：检查关键文件是否真实存在且不为空
-if [ ! -s "${TMP_CORE}/runner.sh" ] || [ ! -s "${TMP_CORE}/preflight.sh" ] || [ ! -s "${TMP_CORE}/mod_probe.sh" ] || [ ! -s "${TMP_CORE}/mod_state.py" ] || [ ! -s "${TMP_CORE}/mod_anchor_browser.py" ] || [ ! -s "${TMP_CORE}/agent_daemon.sh" ]; then
+if [ ! -s "${TMP_CORE}/runner.sh" ] || [ ! -s "${TMP_CORE}/preflight.sh" ] || [ ! -s "${TMP_CORE}/mod_probe.sh" ] || [ ! -s "${TMP_CORE}/mod_state.py" ] || [ ! -s "${TMP_CORE}/mod_anchor_browser.py" ] || [ ! -s "${TMP_CORE}/mod_local_trust.py" ] || [ ! -s "${TMP_CORE}/agent_daemon.sh" ]; then
     echo -e "\033[31m❌ 致命错误：核心代码拉取失败！网络阻断或 GitHub Raw 异常。\033[0m"
     echo "🛡️ 防砖机制触发：已中止覆盖，旧版哨兵引擎仍安全存活中。"
     rm -rf "$TMP_CORE"
@@ -692,6 +706,7 @@ mv "$TMP_CORE" "${INSTALL_DIR}/core"
 chmod +x ${INSTALL_DIR}/core/*.sh
 chmod +x ${INSTALL_DIR}/core/mod_state.py 2>/dev/null || true
 chmod +x ${INSTALL_DIR}/core/mod_anchor_browser.py 2>/dev/null || true
+chmod +x ${INSTALL_DIR}/core/mod_local_trust.py 2>/dev/null || true
 
 echo -e "\n[6.1/7] 正在装配 GeoAnchor 浏览器运行时 (Playwright + Chromium)..."
 GEOANCHOR_VENV="${INSTALL_DIR}/venv"
