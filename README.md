@@ -1,153 +1,260 @@
-# 🛡️ IP-Sentinel (分布式 IP 哨兵集群)
+# 🛡️ IP-Sentinel
 
 ![Agent Installs](https://img.shields.io/endpoint?url=https://ip-sentinel-count.samanthaestime296.workers.dev/stats/agent)
 ![Master Commands](https://img.shields.io/endpoint?url=https://ip-sentinel-count.samanthaestime296.workers.dev/stats/master)
 ![License](https://img.shields.io/github/license/hotyue/IP-Sentinel)
 
-> **一个极度轻量、零感知、支持中枢遥控的 VPS IP 自动化养护与区域纠偏引擎。**
-> **💡 提示：如果本项目提升了您的节点稳定性，请点击右上角点亮 🌟 Star！您的支持是我们持续研发和维护指纹库的核心动力。**
+> **一个支持 GeoAnchor 状态机、Telegram 中枢联控、灰度回滚的 VPS IP 自动化养护引擎。**
 
 📢 官方战术交流频道: 🛰️ [IP-Sentinel Matrix](https://t.me/IP_Sentinel_Matrix)
 
-专为解决 VPS IP 被 Google 等数据库错误定位到中国大陆/香港（俗称“送中”）等问题而生。IP-Sentinel 已从单机脚本全面跃升为 **Master-Agent 分布式架构**。它像影子一样潜伏在全球各地的服务器后台，通过高度拟真的真实用户行为为你默默积累 IP 权重，并允许你通过 Telegram 随时随地对整个舰队进行毫秒级“点名”与“遥控”。
+IP-Sentinel 用于缓解 VPS 出口被 Google / YouTube 等服务错误识别为中国大陆、香港或其他非目标地区的问题。当前实现已从早期单机巡逻脚本演进为一套 **Master-Agent 分布式架构 + GeoAnchor 闭环调度**：
 
-## ✨ 核心极客特性 (Core Architecture)
+`preflight -> probe -> state machine -> browser anchor / local trust / cooldown -> rollout / rollback`
 
-- 📊 **深海声呐全维探针 (Deep Sea Sonar v4.0.4)**：内嵌强效正则去污的 JSON 提取引擎，无损展现免掩码的真实 IP 情报。聚合 Scamalytics、AbuseIPDB 等五大权威防欺诈库，精准嗅探代理/VPN特征、25端口及流媒体原生解锁状态，并自带 Google “送中”高危预警与污染趋势图谱。
-- ⚡ **无损高并发引擎 (WAL Concurrency)**：司令部 SQLite 数据库全面激活 `WAL` (Write-Ahead Logging) 模式与毫秒级排队算法。即使对 500 台边缘节点发起全军总攻，也能完美规避 `database is locked` 与 Telegram `429` 拦截。
-- 🪶 **抽脂级极简部署 (Zero-Bloat Native)**：全栈剔除第三方依赖，基于 Python3 原生标准库运行。安装强制注入 `--no-install-recommends` 防捆绑参数。无论是 128MB 内存的极简 NAT，还是 Alpine 游击队容器，均可如丝般顺滑运行。
-- 🎛️ **扁平化指挥矩阵 (Flat Command Matrix)**：引入扁平化四级战区降维视图与双轨身份制。深度定制 Inline Keyboard 逃生舱交互，支持原位丝滑重绘 (In-place UI Edit)，实现毫秒级模块热启停与跨地域深海声呐投放。
-- 🔄 **全栈零信任 OTA 引擎 (Zero-Trust OTA Upgrade)**：首创双端物理熔断机制。长官可通过私有中枢，一键向全舰队下发静默热重载指令；更支持**「司令部金蝉脱壳」**，实现真正的全栈去 SSH 化运维。
-- 🛡️ **SSOT 溯源与热更新装甲 (Smooth Upgrade Engine)**：全系脚本彻底消灭硬编码，动态抓取云端版本信标。自带状态机嗅探逻辑，即便是手动在老节点执行安装，也仅需回车瞬间完成配置继承与无损换代。
-- 🗺️ **全球拓扑矩阵与活体词库 (Global Nexus)**：接入 GitHub Actions 云端兵工厂，每日静默同步全球各大区真实热搜榜单与高权重本土站点，让伪装行为永远贴合当地网络脉搏。
-- 👻 **绝对时空对齐与高频错峰 (UTC-Seeded Scheduling)**：摒弃传统随机轮询，全栈强制接管底层时钟为**绝对 UTC 时间**。全舰队以 **20 分钟 (每日 72 次)** 的极高密度进行养护巡逻，叠加基于部署锚点的天然削峰与随机防并发休眠，完美化解十万级集群的“惊群效应”与 API 熔断。
-- 🖧 **极速预检与三级容灾架构 (Fail-Fast & Fallback)**：底层引擎强力接管发包参数 (`--interface`) 的同时，创新引入 **4 秒极速预检 (Fail-Fast)** 雷达与**三级阶梯脱壳**机制。无论是纯 IPv6 孤岛、WARP 劫持死锁还是复杂 NAT 嵌套，系统均能瞬间避开网络黑洞，彻底杜绝探针假死与流量溢出。
+---
 
-**—— 💎 骨干基建特征 ——**
-- 🏭 **全自动云端军工厂 (CI/CD Data Factory)**：依托 GitHub Actions 构建双轨无人值守流水线。**每月 1 日**批量锻造 4000+ 带有绝对物理分区的原生终端指纹库；**每日凌晨 (UTC)** 实时抓取全球各战区 Google 真实热搜榜单与本土骨干新闻 RSS。为前线舰队源源不断地输送最鲜活的伪装弹药。
-- 🔒 **叹息之墙 (Zero-Trust HMAC)**：底层通讯引入 时间戳 + HMAC-SHA256 军用级动态签名。指令有效期仅 60 秒（阅后即焚），未授权请求直接触发系统级 403 物理熔断，彻底免疫中间人抓包与重放攻击。
-- ☁️ **云端中枢 (Public Master)**：官方公共机器人 [@OmniBeacon_bot](https://t.me/OmniBeacon_bot) ，新手免自建，一键接入极速入伍！同时支持硬核极客私有化 SQLite 分布式部署。
-- 👁️‍🗨️ **玻璃房透明遥测 (Glasshouse)**：基于 Cloudflare Workers 的全透明计数中枢，绝对零隐私收集，仅作原子累加，底层网关源码全开源。
+## ✨ 当前实现包含什么
 
-## 📂 项目架构 (Monorepo)
+- **Preflight 预检**：在执行养护前检查公网出口、IPv4/IPv6、一致性、DNS 解析、时区、NTP、代理污染、profile 可写性。
+- **GeoScore 探针**：综合 Google Jump、YouTube Premium、YouTube Music、DNS、活跃 IP 栈、public IP match、host resolution 生成分数。
+- **状态机调度**：支持 `UNKNOWN`、`CN_LOCKED`、`HK_DRIFT`、`OTHER_DRIFT`、`PARTIAL`、`TARGET`、`STABLE`、`BOT_RISK`、`DNS_RISK`、`DISABLED`。
+- **真实浏览器锚定**：通过 Playwright + Chromium 的持久化 profile 执行低频浏览器锚定，不伪造账号登录，不绕验证码。
+- **Local Trust 重构**：优先访问低风险公共站点；没有专用 trust profile 时，会自动回退到区域规则中的 trust URL。
+- **Runner v2 闭环**：由 `core/runner_v2.sh` 串联 preflight、probe、state、anchor、trust、cooldown，并支持 conservative rollout 模式。
+- **Telegram 控制面**：Master / Agent 已接入 `/status`、`/score`、`/preflight`、`/probe`、`/anchor`、`/trust`、`/cooldown`、`/resume`，且手动动作也受状态机限制。
+- **灰度与回滚**：支持 3 天灰度观测、BOT_RISK 自动冷却、连续无改善自动降为 conservative；支持回滚到旧 `runner.sh` 并保留 state / profiles / logs。
 
-本项目采用企业级的“主从控制”与“冷热数据分离”双重架构：
+---
+
+## 📂 项目结构
 
 ```text
-📦 IP-Sentinel
- ┣ 📂 .github/workflows/      # 🏭 自动化兵工厂：每月定时触发指纹生成的 CI/CD 流水线
- ┣ 📂 master/                 # 🧠 司令部：SQLite 存储 (含 ip_trend_log 趋势跟踪表)、TG 监听与 Webhook 调度
- ┣ 📂 core/                   # 🛡️ 边缘哨兵：Webhook 被动监听、哈希锚定执行引擎 (集成深海声呐探测模块)
- ┣ 📂 scripts/                # 🐍 兵工厂引擎：基于 Python 的多物理分区 UA 生成器
- ┣ 📂 data/                   # 🗂️ 全球数据规则库 (动态拓扑)
- ┃  ┣ 📜 map.json             # 🌍 全球区域大脑 (v3.5.0 大洲战区拓扑)
- ┃  ┣ 📂 regions/             # 🧊 冷数据：按 [国家/省州/城市] 深度细分的 LBS 锚点
- ┃  ┣ 📂 keywords/            # 🔥 热数据：按国家归类的动态搜索词库 (OTA 自动更新)
- ┃  ┗ 📜 user_agents.txt      # 🔥 热数据：由兵工厂每月锻造的绝对坐标专属设备库
- ┣ 📜 version.txt             # 🚩 双端版本信标：Agent/Master 独立解耦的 KV 环境配置
- ┗ 📂 telemetry/              # 👁️‍🗨️ 玻璃房计划：Cloudflare Workers 透明计数器网关源码
+IP-Sentinel
+├─ master/                    # Telegram Master、SQLite、节点面板与指令分发
+├─ core/
+│  ├─ runner.sh              # 旧调度器，保留作兼容/回滚目标
+│  ├─ runner_v2.sh           # GeoAnchor 闭环调度器
+│  ├─ preflight.sh           # 预检
+│  ├─ mod_probe.sh           # GeoScore 探针
+│  ├─ mod_state.py           # 状态机 / quota / cooldown
+│  ├─ mod_anchor_browser.py  # 浏览器锚定
+│  ├─ mod_local_trust.py     # Local Trust
+│  ├─ geoanchor_control.py   # Telegram / Agent GeoAnchor 控制入口
+│  ├─ geoanchor_rollout.py   # 灰度快照记录器
+│  └─ geoanchor_rollback.sh  # 回滚脚本
+├─ data/
+│  ├─ regions/               # 按 [国家/州/城市] 的区域冷数据
+│  ├─ trust_profiles/        # 精修 trust profile（当前仅少量）
+│  ├─ keywords/              # 国家级关键词热数据
+│  └─ user_agents.txt        # 浏览器 UA 热数据
+├─ baseline/                 # 阶段基线与进度记录
+└─ version.txt               # Agent / Master 版本信标
 ```
 
-## 🚀 极速部署 (Quick Start)
-> 🛡️ **跨平台装甲支持**：Debian / Ubuntu / CentOS / RHEL / Alpine Linux / Arch Linux
-系统现提供两种接入模式，请根据您的战术需求选择：
+---
 
-### 🔹 模式 A：私有独立模式 (全自主、强烈推荐)
-适合追求绝对数据隐私与舰队最高控制权的领主。
+## 🚀 快速部署
 
-> ☢️ **核按钮系统已就绪**：采用私有部署，您将解锁 **OTA 远程静默升级** 权限！所有私有前线节点均可通过您的 TG 面板实现一键全网代码热重载换代！
+> 支持 Debian / Ubuntu / CentOS / RHEL / Alpine / Arch Linux
 
-- **部署 Master (中枢大脑)**：找一台 VPS 作为司令部（仅需部署一台），执行：
-- [官方部署教程](https://blog.iot-architect.com/engineering-practice/ip-sentinel-master-deployment-guide/)
+### 1. 部署 Master
+
 ```bash
 curl -fsSL https://raw.githubusercontent.com/hotyue/IP-Sentinel/main/master/install_master.sh -o /tmp/ins_master.sh && sudo bash /tmp/ins_master.sh
 ```
-- 部署 Agent (边缘哨兵)：在需要养护的机器上执行 Agent 脚本，安装时选择私有独立中枢，并分别输入您自建机器人的 [Token](https://blog.iot-architect.com/engineering-practice/create-private-telegram-bot-via-botfather) 以及您的个人 [Chat ID](https://blog.iot-architect.com/engineering-practice/get-telegram-personal-id-via-userinfobot) ：
-- [官方部署教程](https://blog.iot-architect.com/engineering-practice/ip-sentinel-installation-and-upgrade-guide/)
-```Bash
-curl -fsSL https://raw.githubusercontent.com/hotyue/IP-Sentinel/main/core/install.sh -o /tmp/ins_agent.sh && sudo bash /tmp/ins_agent.sh
-```
-- 激活节点：安装完成后，您的手机会收到一条 #REGISTER# 注册暗号，将其转发给您自己的机器人即可完成编队入库。
 
-### 🔸 模式 B：官方公共模式 (最简体验)
-适合不想折腾、只想快速体验养护效果的新兵。
-
-- 关注机器人：在 TG 中关注官方安全网关 [@OmniBeacon_bot](https://t.me/OmniBeacon_bot) 并发送 /start。
-
-- 部署 Agent：在目标 VPS 上执行以下指令，安装过程中选择官方公共网关，并输入您的 Chat ID：
-- [官方部署教程](https://blog.iot-architect.com/engineering-practice/deploy-ip-sentinel-official-gateway/)
-```Bash
-curl -fsSL https://raw.githubusercontent.com/hotyue/IP-Sentinel/main/core/install.sh -o /tmp/ins_agent.sh && sudo bash /tmp/ins_agent.sh
-```
-- 激活节点：同上，将收到的暗号转发给官方机器人即可。
-
-## 🆙 架构级无损热升级指引 (Upgrade Guide)
-
-### 📡 方式一：OTA 远程静默升级 (私有中枢专属)
-如果您是私有中枢领主，当司令部首页 (`/start`) 或每日战报提示发现新版本时：
-
-1. **升级 Master 司令部自身**：在司令部顶级菜单，点击最上方的 `[ 🆙 升级司令部至 vX.X.X ]`。中枢将释放幽灵进程静默重构，数秒后向您发送捷报。
-2. **升级全舰队 Agent**：在司令部顶级菜单，点击 `[ ☢️ 全舰队 OTA 热重载 ]`。
-3. **升级单节点 Agent**：进入 `🌍 全球战区雷达` -> 选择目标节点 -> 在统一终端面板点击 `[ 🆙 OTA 静默升级 ]`。
-*(⚠️ 节点收到指令后会在后台挂起静默拉取，全程无需登录 SSH，完成后将主动发回心跳确认！)*
-
-### 💻 方式二：SSH 终端平滑直装 (适用于官方网关或老旧节点)
-如果您的节点不支持 OTA，或者您的节点版本过于陈旧 (如 v3.3.1)：
-
-- 登录该节点的 SSH 终端，再次运行上面的 core/install.sh 官方安装指令。
-
-- 安装引擎自带状态机嗅探逻辑，它会自动读取老旧数据，您只需一路回车，3 秒即可在本地完成配置继承、数据同步与新内核的无损覆盖热重载！
-
-## 🗑️ 一键无痕卸载
-如果你需要清理某个边缘节点，只需重新运行 `core/install.sh` 并选择 **[2]**，或直接在节点终端执行：
-
-```Bash
-bash /opt/ip_sentinel/core/uninstall.sh
-
-```
-
-## 🧓 传家宝老旧系统专用通道 (Debian 9)
-
-如果你的小鸡系统版本过低（如 Debian 9），由于官方 APT 源已关闭且 Python 版本过旧，无法使用主线版本，请使用 **Legacy 兼容分支** 部署。
-*(注意：该分支仅作基础维护，不享受新功能迭代，请尽可能升级你的系统)*
+### 2. 部署 Agent
 
 ```bash
-bash <(curl -sL https://raw.githubusercontent.com/hotyue/IP-Sentinel/legacy/core/install.sh)
+curl -fsSL https://raw.githubusercontent.com/hotyue/IP-Sentinel/main/core/install.sh -o /tmp/ins_agent.sh && sudo bash /tmp/ins_agent.sh
 ```
 
-## 📡 战术联络 (Community)
+安装 Agent 时会选择目标地区，并写入：
 
-如果你在使用过程中遇到任何疑难杂症，或者想围观大佬们的养护战报，欢迎加入我们的基地：
-- Telegram 频道: [@IP_Sentinel_Matrix](https://t.me/IP_Sentinel_Matrix)
+- `TARGET_COUNTRY`
+- `TARGET_STATE`
+- `TARGET_CITY`
+- `TRUST_PROFILE_FILE`
+- `GEOANCHOR_VENV`
+- `PLAYWRIGHT_BROWSERS_PATH`
+- `GEOANCHOR_ROLLOUT_MODE`
 
-## 🤝 参与贡献 (Contributors)
+安装完成后，节点仍通过 `#REGISTER#` 向 Master 入库。
 
-**🌟 感谢以下所有为 IP-Sentinel 添砖加瓦的指挥官们！** 你们的每一次 PR 都在让这艘战舰的全球雷达覆盖得更广。
+---
 
-<a href="https://github.com/hotyue/IP-Sentinel/graphs/contributors">
-  <img src="https://contrib.rocks/image?repo=hotyue/IP-Sentinel" alt="Contributors" />
-</a>
+## 🧠 GeoAnchor 调度逻辑
 
-如果你想为项目增加新的节点区域（例如德国、英国、大洋洲等），或者提供更丰富的本土化搜索词库，非常欢迎提交 Pull Request！
+### 运行链路
 
+1. `core/preflight.sh`
+2. `core/mod_probe.sh`
+3. `core/mod_state.py update-from-probe`
+4. `core/mod_state.py next-action`
+5. 按状态执行：
+   - `anchor_browser`
+   - `local_trust`
+   - `probe_only`
+   - `cooldown`
+6. 执行后再次 probe，并回写状态
 
-> - 感谢 @xykt 本项目IP质量检测采用[xykt/IPQuality](https://github.com/xykt/IPQuality) 脚本！
+### 关键行为
 
-**💡 全球节点贡献规范：**
-1. 在 `data/regions/国家代码/省州代码/` 目录下新增对应城市的配置 `.json`。
-2. 在 `data/keywords/` 目录下新增或完善配套国家的词库 `kw_XX.txt`。
-3. **最重要的一步：** 在 `data/map.json` 中登记你的国家、省州与城市信息。安装脚本将自动读取地图，在全球雷达中点亮你的节点！
+- `BOT_RISK`：停止高风险动作，进入冷却
+- `DNS_RISK`：停止 anchor，仅保留低频 probe
+- `TARGET` / `STABLE`：自动降频
+- `CN_LOCKED` / `HK_DRIFT` / `OTHER_DRIFT`：进入恢复期策略
+- `GEOANCHOR_ROLLOUT_MODE=conservative`：`runner_v2` 会把 `anchor_browser` / `local_trust` 降为 `probe_only`
+
+---
+
+## 🤖 Telegram 控制面
+
+当前 GeoAnchor 手动控制命令：
+
+```text
+/status <node>      查看当前状态、最近探针、下一动作
+/score <node>       查看最近 7 天 GeoScore 趋势
+/preflight <node>   执行一次 preflight
+/probe <node>       执行一次轻量 probe
+/anchor <node>      执行一次 browser anchor（受状态机限制）
+/trust <node>       执行一次 local trust（受状态机限制）
+/cooldown <node>    手动进入冷却
+/resume <node>      手动解除冷却
+```
+
+### 重要限制
+
+- 手动 `/anchor` **不会绕过状态机**
+- `BOT_RISK` 下 `/anchor` 会被拒绝
+- `DNS_RISK` 下 `/anchor` 会被拒绝
+- 配额耗尽时手动动作会被拒绝
+- 所有手动动作都会写入日志
+
+---
+
+## 🌍 地区支持说明
+
+### 当前支持原则
+
+系统并不是“自动支持全球任意 VPS 所属地”，而是：
+
+1. **仓库里存在 `data/regions/...` 区域 JSON 的地区，可以直接作为目标地区使用**
+2. **存在专用 `data/trust_profiles/...` 的地区，Local Trust 会更精细**
+3. **没有专用 trust profile 的地区，Local Trust 会回退到 region JSON 中的 trust URL**
+
+### 当前明确已支持的典型地区
+
+- **美国**：多州多城市
+- **新加坡**
+- **日本**：东京、大阪
+- **香港**
+- 以及仓库中已存在 region JSON 的其他地区
+
+### 当前限制
+
+- **精修 trust profile 目前只有 `US-CA-Los_Angeles`**
+- 其他地区虽然可以运行，但 Local Trust 主要依赖 fallback 规则，不代表已经做了同等精细化本地画像
+- 如果某地区在 `data/regions/` 中没有对应 JSON，就不能直接选为目标地区
+
+### 新增地区的方法
+
+1. 在 `data/regions/国家代码/州代码或Default/城市.json` 增加区域文件
+2. 在 `data/keywords/` 增加对应国家词库
+3. 在 `data/map.json` 登记国家 / 州 / 城市
+4. 如需更精细 Local Trust，再增加 `data/trust_profiles/国家-州-城市.json`
+
+---
+
+## 🆙 升级
+
+### 通过安装脚本平滑升级
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/hotyue/IP-Sentinel/main/core/install.sh -o /tmp/ins_agent.sh && sudo bash /tmp/ins_agent.sh
+```
+
+升级时会尽量继承既有配置、state、profile 和定时任务。
+
+### 通过 Telegram OTA 升级
+
+- 升级 Master：`/start` 顶部升级入口
+- 升级全舰队 Agent：全舰队 OTA
+- 升级单节点 Agent：节点控制台中的 OTA 按钮
+
+---
+
+## 🧪 灰度测试与回滚
+
+### 灰度建议
+
+建议选择 1 台问题 VPS 连续观察 3 天，每日记录：
+
+- GeoScore
+- Google Jump
+- YouTube Premium
+- YouTube Music
+- DNS 出口
+- IPv4 / IPv6 状态
+- BOT_RISK 次数
+
+当前实现里，`core/geoanchor_rollout.py snapshot` 会记录这些灰度快照，并在：
+
+- 出现 `BOT_RISK` 时自动施加冷却
+- 连续 3 天无改善时自动把 `GEOANCHOR_ROLLOUT_MODE` 切到 `conservative`
+
+### 回滚
+
+回滚脚本：
+
+```bash
+bash /opt/ip_sentinel/core/geoanchor_rollback.sh
+```
+
+回滚会做以下事情：
+
+- 备份 `state/`
+- 备份 `profiles/`
+- **不删除 logs**
+- 将 systemd / cron / scheduler 中的 `runner_v2.sh` 恢复为 `runner.sh`
+- 将 `GEOANCHOR_ROLLOUT_MODE` 恢复为 `normal`
+
+---
+
+## 🗑️ 卸载
+
+```bash
+bash /opt/ip_sentinel/core/uninstall.sh
+```
+
+---
+
+## 🤝 贡献
+
+欢迎补充：
+
+- 新国家 / 新州 / 新城市的 `data/regions`
+- 更本地化的 `data/keywords`
+- 更精细的 `data/trust_profiles`
+- Master / Agent 控制面与状态机策略
+
+特别是当前 `trust_profiles` 覆盖还远不完整，欢迎按城市继续补齐。
+
+---
 
 ## ⚠️ 免责声明
 
-本项目仅供网络原理研究、个人 VPS 维护学习使用。请遵守当地法律法规及目标服务商的 TOS（服务条款），切勿用于恶意高频请求或任何非法用途。使用者需自行承担因不当使用造成的 IP 封禁或其他相关风险。
+本项目仅供网络原理研究、个人 VPS 维护学习使用。请遵守当地法律法规及目标服务商 TOS，勿用于恶意高频请求、绕过风控或任何非法用途。使用者需自行承担由不当使用引发的封禁或其他风险。
+
+---
 
 ## 保持联系
 
 [![Blog](https://img.shields.io/badge/Blog-个人博客-blue)](https://blog.iot-architect.com)
 
-如果你觉得这个项目对你有帮助，欢迎关注我的个人博客，我会定期分享技术教程。
-
+如果这个项目对你有帮助，欢迎关注博客或前往 GitHub 点亮 Star。
 
 ## Stargazers over time
+
 [![Stargazers over time](https://starchart.cc/hotyue/IP-Sentinel.svg?variant=adaptive)](https://starchart.cc/hotyue/IP-Sentinel)
