@@ -178,6 +178,12 @@ STATE_BEFORE_JSON=$("$PYTHON_BIN" "${INSTALL_DIR}/core/mod_state.py" get-state -
 ACTION_JSON=$("$PYTHON_BIN" "${INSTALL_DIR}/core/mod_state.py" next-action --json)
 ACTION_NAME=$(printf '%s' "$ACTION_JSON" | jq -r '.action')
 
+if [ "${GEOANCHOR_ROLLOUT_MODE:-normal}" = "conservative" ] && { [ "$ACTION_NAME" = "anchor_browser" ] || [ "$ACTION_NAME" = "local_trust" ]; }; then
+    log "WARN " "灰度阶段处于 conservative 模式，已将动作 ${ACTION_NAME} 降级为 probe_only。"
+    ACTION_NAME="probe_only"
+    ACTION_JSON=$(jq -n --arg action "$ACTION_NAME" --arg reason "rollout_conservative_mode" '{action: $action, reason: $reason}')
+fi
+
 log "INFO " "状态机给出的下一步动作: ${ACTION_NAME}"
 ACTION_RESULT_JSON=$(run_action "$ACTION_NAME")
 
