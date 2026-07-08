@@ -667,6 +667,10 @@
                 {
                   "id": "New_York",
                   "name": "New York (纽约)"
+                },
+                {
+                  "id": "Buffalo",
+                  "name": "Buffalo (布法罗)"
                 }
               ]
             },

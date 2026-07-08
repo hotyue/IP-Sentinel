@@ -1,0 +1,41 @@
+{
+  "region_name": "United States - Buffalo",
+  "google_module": {
+    "base_lat": 42.8864,
+    "base_lon": -78.8784,
+    "lang_params": "hl=en-US&gl=US",
+    "valid_url_suffix": "com"
+  },
+  "trust_module": {
+    "white_urls": [
+      "https://www.buffalony.gov/",
+      "https://www.buffalolib.org/",
+      "https://www.buffalo.edu/",
+      "https://www.wgrz.com/",
+      "https://www.wkbw.com/",
+      "https://www.buffalobills.com/",
+      "https://www.nhl.com/sabres/",
+      "https://www.visitbuffaloniagara.com/",
+      "https://www.nfta.com/",
+      "https://www.weather.gov/buf",
+      "https://www.walmart.com/",
+      "https://www.target.com/",
+      "https://www.homedepot.com/",
+      "https://www.chase.com/",
+      "https://www.irs.gov/",
+      "https://www.usa.gov/"
+    ],
+    "static_urls": [
+      "https://www.buffalony.gov/",
+      "https://www.buffalolib.org/",
+      "https://www.buffalo.edu/",
+      "https://www.wgrz.com/",
+      "https://www.wkbw.com/",
+      "https://www.visitbuffaloniagara.com/",
+      "https://www.weather.gov/buf",
+      "https://www.walmart.com/",
+      "https://www.target.com/",
+      "https://www.usa.gov/"
+    ]
+  }
+}
