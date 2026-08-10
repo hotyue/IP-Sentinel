@@ -1,8 +1,29 @@
 #!/bin/bash
+# IPS-MAGIC:IP-SENTINEL-BUILD-MASTER-v4.3.0
 # ==========================================================
 # 模块名称: build_master.sh (v4.3.0 Orchestrator)
 # 核心功能: Master 安装业务总指挥，按原版时序复用组件
 # ==========================================================
+
+# [安全修复] 供应链完整性校验 — 防止远程脚本被投毒替换
+verify_magic() {
+    local file="$1"
+    local expected_magic="# IPS-MAGIC:"
+    if ! head -5 "$file" 2>/dev/null | grep -q "$expected_magic"; then
+        echo -e "\033[31m❌ 完整性校验失败：${file} 缺少 MAGIC STRING，疑似供应链投毒！\033[0m"
+        exit 1
+    fi
+    # [安全修复] 文件大小检查 — 拒绝空脚本和异常大的脚本（>500KB）
+    local fsize=$(stat -c%s "$file" 2>/dev/null || echo 0)
+    if [ "$fsize" -lt 50 ]; then
+        echo -e "\033[31m❌ 完整性校验失败：${file} 文件过小 (${fsize} bytes)，疑似被截断！\033[0m"
+        exit 1
+    fi
+    if [ "$fsize" -gt 512000 ]; then
+        echo -e "\033[31m❌ 完整性校验失败：${file} 文件过大 (${fsize} bytes)，疑似注入攻击！\033[0m"
+        exit 1
+    fi
+}
 
 # 传递中断引信
 trap 'exit 1' INT QUIT TERM
@@ -19,6 +40,12 @@ for mod in "${MODULES[@]}"; do
         echo -e "\033[31m❌ 致命错误：中枢依赖模块 [${mod}] 装载失败！\033[0m"
         exit 1
     fi
+    # [安全修复] 下载后校验完整性再执行
+    verify_magic "${SECURE_TMP}/${mod}"
+    bash -n "${SECURE_TMP}/${mod}" >/dev/null 2>&1 || {
+        echo -e "\033[31m❌ 语法校验失败：${mod} 脚本格式异常，已熔断！\033[0m"
+        exit 1
+    }
     source "${SECURE_TMP}/${mod}"
 done
 

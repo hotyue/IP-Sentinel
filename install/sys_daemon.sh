@@ -1,4 +1,5 @@
 #!/bin/bash
+# IPS-MAGIC:IP-SENTINEL-SYSDAEMON-v4.3.0
 # ==========================================================
 # 模块名称: sys_daemon.sh
 # 核心功能: 安装前物理清洗、双缓冲下载执行域、Systemd/Cron 进程注入

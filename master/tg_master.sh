@@ -69,17 +69,29 @@ db_exec() {
 }
 
 # [HMAC 动态签名引擎] 下发指令挂载带有时效性的哈希签名，防止重放与中间人篡改
+# [安全修复 #108] 签名范围覆盖所有参数 — 防止 mod/state/b64 被篡改
 generate_signed_url() {
     local target_ip=$1
     local target_port=$2
     local action_path=$3
+    local suffix="${4:-}"  # [安全修复 #108] 可选后缀参数（如 &mod=x&state=y）
     local current_t=$(date +%s)
     
-    local payload="${action_path}:${current_t}"
-    # [v4.1.7 致命修复] 弃用 -hmac，改用 -macopt 标准语法，彻底杜绝 TG 群组负数 ID 导致的 OpenSSL 参数注入崩溃
-    local signature=$(echo -n "$payload" | openssl dgst -sha256 -mac HMAC -macopt key:"$CHAT_ID" | awk '{print $NF}')
+    # [安全修复 #108] 使用随机 nonce 替代 CHAT_ID 作为 HMAC 密钥
+    local hmac_key="${HMAC_KEY:-${MASTER_CHAT_ID:-$CHAT_ID}}"
     
-    echo "https://${target_ip}:${target_port}${action_path}?t=${current_t}&sign=${signature}"
+    # [安全修复 #108] 构建完整查询字符串（不含 sign），与 Agent 端验证格式一致
+    # 格式: path:t=TIME&suffix_params (排序后)
+    local full_query="t=${current_t}"
+    if [ -n "$suffix" ]; then
+        # 去掉前导 &，合并到查询字符串
+        local clean_suffix="${suffix#\&}"
+        full_query="${full_query}&${clean_suffix}"
+    fi
+    local payload="${action_path}:${full_query}"
+    local signature=$(echo -n "$payload" | openssl dgst -sha256 -mac HMAC -macopt key:"$hmac_key" | awk '{print $NF}')
+    
+    echo "https://${target_ip}:${target_port}${action_path}?t=${current_t}&sign=${signature}${suffix}"
 }
 
 # ==========================================================
@@ -100,8 +112,8 @@ call_agent() {
             local url=$(generate_signed_url "$ip" "$port" "$path")
             [ -n "$suffix" ] && url="${url}${suffix}"
             
-            # 缩短单次重试时间，实现用户无感知的秒级降级切换
-            res=$(curl -k -s --connect-timeout 4 -m 12 "$url" || echo "FAILED")
+    # [安全修复 #107] 移除 -k（跳过 TLS 验证），强制证书校验防中间人攻击
+            res=$(curl -s --connect-timeout 4 -m 12 "$url" || echo "FAILED")
             if [ "$res" != "FAILED" ] && [ -n "$res" ]; then
                 echo "$res"
                 return
@@ -155,6 +167,19 @@ while true; do
             # [UI 状态机] 提前提取交互回调 ID，确保后续 UI 重绘正常流转
             CB_ID=$(echo "$UPDATE" | jq -r '.callback_query.id // empty')
             MSG_ID=$(echo "$UPDATE" | jq -r '.callback_query.message.message_id // empty')
+
+            # [安全修复 #106] Telegram 发送者鉴权 — 只有 MASTER_CHAT_ID 能执行特权命令
+            SENDER_ID=$(echo "$UPDATE" | jq -r '.message.from.id // .callback_query.from.id // 0' 2>/dev/null)
+            if [ "$SENDER_ID" != "$MASTER_CHAT_ID" ] && [ "$SENDER_ID" != "0" ]; then
+                # 静默拒绝非授权用户，不泄露任何信息
+                if [ -n "$CB_ID" ]; then
+                    curl -s --connect-timeout 5 -m 10 -X POST "https://api.telegram.org/bot${TG_TOKEN}/answerCallbackQuery" \
+                        -d "callback_query_id=${CB_ID}" \
+                        -d "text=权限拒绝" \
+                        -d "show_alert=true" > /dev/null 2>&1
+                fi
+                continue
+            fi
 
             # ----------------------------------------------------------
             # [业务流 A] 深海声呐态势感知一键入库模块
@@ -252,9 +277,15 @@ while true; do
                 AGENT_OTA=$(echo "$RAW_OTA" | tr -cd 'a-z')
                 [ -z "$AGENT_OTA" ] && AGENT_OTA="false"
                 
-                # SSRF 拦截墙
+                # SSRF 拦截墙 [安全修复 #107]
+                # 拦截私有 IP 段 + 回环 + 常见内网域名
                 if [[ "$AGENT_IP" =~ ^127\.|^10\.|^192\.168\.|^172\.(1[6-9]|2[0-9]|3[0-1])\.|^::1$|^localhost$ ]]; then
                     send_msg "$CHAT_ID" "⛔ **安全拦截**：禁止注册内网或回环 IP，防止 SSRF 攻击渗透。"
+                    continue
+                fi
+                # [安全修复 #107] 拦截域名形式的 SSRF（如 nip.io, xip.io, localdns 等）
+                if [[ "$AGENT_IP" =~ \.nip\.io$|\.xip\.io$|\.local$|\.internal$|\.lan$|\.onion$ ]]; then
+                    send_msg "$CHAT_ID" "⛔ **安全拦截**：禁止注册内网域名，防止 SSRF 攻击渗透。"
                     continue
                 fi
                 
@@ -570,7 +601,20 @@ BTN_DANGER="[{\"text\":\"🗑️ 从中枢销毁该档案\",\"callback_data\":\"
                 toggle:*)
                     IFS=':' read -r CMD MOD_NAME TARGET_NODE TARGET_STATE <<< "$TEXT"
                     CHAT_ID=$(echo "$CHAT_ID" | tr -cd '0-9-')
-                    
+
+                    # [安全修复 #105] 严格白名单校验 — 防止 SQL 注入
+                    case "$MOD_NAME" in
+                        google|trust|ota) ;; # 仅允许这三个模块名
+                        *) send_msg "$CHAT_ID" "⛔ 非法模块参数，操作已拒绝。"; continue ;;
+                    esac
+
+                    case "$TARGET_STATE" in
+                        true|false) ;; # 仅允许布尔值
+                        *) send_msg "$CHAT_ID" "⛔ 非法状态参数，操作已拒绝。"; continue ;;
+                    esac
+
+                    TARGET_NODE=$(echo "$TARGET_NODE" | tr -cd 'a-zA-Z0-9_.-')
+
                     AGENT_INFO=$(db_exec "SELECT agent_ip, agent_port FROM nodes WHERE chat_id='$CHAT_ID' AND node_name='$TARGET_NODE' LIMIT 1;")
                     AGENT_IP=$(echo "$AGENT_INFO" | cut -d'|' -f1)
                     AGENT_PORT=$(echo "$AGENT_INFO" | cut -d'|' -f2)

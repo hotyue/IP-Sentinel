@@ -1,4 +1,5 @@
 #!/bin/bash
+# IPS-MAGIC:IP-SENTINEL-MASTER-SETUP-v4.3.0
 # ==========================================================
 # 模块名称: master_setup.sh
 # 核心功能: Master 环境清洗、令牌交互、SQLite 建库、守护进程注入与结果呈现
