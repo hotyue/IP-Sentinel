@@ -1,3 +1,6 @@
+bomb threat
+forex factory
+xoso
 fraud
 weather
 adam robinson
@@ -55,7 +58,6 @@ phnom penh crown
 inter miami vs cincinnati
 liverpool vs chelsea
 ac milan
-forex factory
 weather tomorrow
 israeli election results
 apple
@@ -96,5 +98,3 @@ gdt
 claude
 chatgpt
 real madrid vs sevilla fc standings
-real madrid vs sevilla
-nottm forest vs arsenal
