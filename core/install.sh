@@ -843,6 +843,7 @@ mkdir -p "$TMP_CORE"
 curl -fsSL --connect-timeout 10 --retry 3 "${REPO_RAW_URL}/core/runner.sh" -o "${TMP_CORE}/runner.sh"
 curl -fsSL --connect-timeout 10 --retry 3 "${REPO_RAW_URL}/core/updater.sh" -o "${TMP_CORE}/updater.sh"
 curl -fsSL --connect-timeout 10 --retry 3 "${REPO_RAW_URL}/core/tg_report.sh" -o "${TMP_CORE}/tg_report.sh"
+curl -fsSL --connect-timeout 10 --retry 3 "${REPO_RAW_URL}/core/extract_report_stats.sh" -o "${TMP_CORE}/extract_report_stats.sh"
 curl -fsSL --connect-timeout 10 --retry 3 "${REPO_RAW_URL}/core/agent_daemon.sh" -o "${TMP_CORE}/agent_daemon.sh"
 curl -fsSL --connect-timeout 10 --retry 3 "${REPO_RAW_URL}/core/uninstall.sh" -o "${TMP_CORE}/uninstall.sh"
 curl -fsSL --connect-timeout 10 --retry 3 "${REPO_RAW_URL}/core/mod_google.sh" -o "${TMP_CORE}/mod_google.sh"
@@ -850,7 +851,8 @@ curl -fsSL --connect-timeout 10 --retry 3 "${REPO_RAW_URL}/core/mod_trust.sh" -o
 curl -fsSL --connect-timeout 10 --retry 3 "${REPO_RAW_URL}/core/mod_quality.sh" -o "${TMP_CORE}/mod_quality.sh"
 
 # 🛡️ 终极自检墙：一旦任意文件缺失或长度为零，直接熔断放弃覆写，确保宿主不宕机
-if [ ! -s "${TMP_CORE}/runner.sh" ] || [ ! -s "${TMP_CORE}/agent_daemon.sh" ]; then
+if [ ! -s "${TMP_CORE}/runner.sh" ] || [ ! -s "${TMP_CORE}/agent_daemon.sh" ] || \
+   [ ! -s "${TMP_CORE}/tg_report.sh" ] || [ ! -s "${TMP_CORE}/extract_report_stats.sh" ]; then
     echo -e "\033[31m❌ 致命错误：核心代码拉取失败！网络阻断或 GitHub Raw 异常。\033[0m"
     echo "🛡️ 防砖机制触发：已中止覆盖，旧版哨兵引擎仍安全存活中。"
     rm -rf "$TMP_CORE"

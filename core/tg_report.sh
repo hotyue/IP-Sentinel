@@ -5,6 +5,8 @@
 # 核心功能: 收集并聚合终端特征、提取执行快照、侦测云端版本并生成简报
 # ==========================================================
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+STATS_SCRIPT="${SCRIPT_DIR}/extract_report_stats.sh"
 INSTALL_DIR="/opt/ip_sentinel"
 CONFIG_FILE="${INSTALL_DIR}/config.conf"
 LOG_FILE="${INSTALL_DIR}/logs/sentinel.log"
@@ -134,11 +136,35 @@ if [ -z "$LOG_CONTENT" ]; then
 🛠️ **建议**: 节点可能刚部署完毕，请在面板手动执行一次养护动作。
 EOT
 else
+    report_latest_snapshot() {
+        printf '%s\n' "$LOG_CONTENT" | awk '$5 == "[SCORE]" && ($6 == "[Google]" || $6 == "[Trust  ]") {line = $0} END {print line}'
+    }
+
     # 抓取末次执行模块的运行态势图
-    LAST_LOG_LINE=$(echo "$LOG_CONTENT" | grep "\[SCORE\]" | tail -n 1)
-    LAST_TIME=$(echo "$LAST_LOG_LINE" | awk '{print $1,$2}' | tr -d '[]')
-    LAST_MOD=$(echo "$LAST_LOG_LINE" | awk '{print $4}' | tr -d '[]')
-    LAST_SCORE=$(echo "$LAST_LOG_LINE" | awk -F'自检结论: ' '{print $2}')
+    LAST_LOG_LINE=$(report_latest_snapshot)
+    LAST_MOD=$(echo "$LAST_LOG_LINE" | awk '{mod=$6; gsub(/[\[\] ]/, "", mod); print mod}')
+    if { [ "$LAST_MOD" == "Google" ] && [ "$ENABLE_GOOGLE" != "true" ]; } || \
+       { [ "$LAST_MOD" == "Trust" ] && [ "$ENABLE_TRUST" != "true" ]; }; then
+        LAST_LOG_LINE=""
+        LAST_MOD=""
+    fi
+    LAST_TIME=$(echo "$LAST_LOG_LINE" | awk '{ts=$1; sub(/^\[/, "", ts); print ts, $2}')
+    LAST_SCORE=$(echo "$LAST_LOG_LINE" | awk '{$1=$2=$3=$4=$5=$6=$7=""; sub(/^ */, ""); print}')
+
+    # START 只表示发起量；SCORE 是结束判据，成功率只按已结束轮次归一化
+    if [ ! -r "$STATS_SCRIPT" ] || [ ! -x "$STATS_SCRIPT" ] || [ ! -s "$STATS_SCRIPT" ]; then
+        echo "❌ 战报统计组件缺失：$STATS_SCRIPT" >> "${INSTALL_DIR}/logs/error.log"
+        exit 1
+    fi
+    REPORT_UTC_DATE=$(date -u '+%Y-%m-%d')
+    STATS=$(printf '%s\n' "$LOG_CONTENT" | "$STATS_SCRIPT" "$REPORT_UTC_DATE")
+    read -r G_TOTAL G_ENDED G_SUCCESS G_FAILED G_WARN G_ABORT \
+             T_TOTAL T_ENDED T_SUCCESS T_FAILED <<< "${STATS:-}" || true
+    : "${G_TOTAL:=0}" "${G_ENDED:=0}" "${G_SUCCESS:=0}" "${G_FAILED:=0}" \
+      "${G_WARN:=0}" "${G_ABORT:=0}" "${T_TOTAL:=0}" "${T_ENDED:=0}" \
+      "${T_SUCCESS:=0}" "${T_FAILED:=0}"
+    [ "$ENABLE_GOOGLE" == "true" ] || { G_TOTAL=0; G_ENDED=0; G_SUCCESS=0; G_FAILED=0; G_WARN=0; G_ABORT=0; }
+    [ "$ENABLE_TRUST" == "true" ] || { T_TOTAL=0; T_ENDED=0; T_SUCCESS=0; T_FAILED=0; }
 
     MSG="📊 **IP-Sentinel 每日简报 (${FLAG} ${REGION_NAME})**
 ----------------------------
@@ -148,36 +174,25 @@ else
 
     # 统计 Google 纠偏阵列数据
     if [ "$ENABLE_GOOGLE" == "true" ]; then
-        GOOGLE_LOGS=$(echo "$LOG_CONTENT" | grep "\[Google")
-        G_TOTAL=$(echo "$GOOGLE_LOGS" | grep "\[START\]" -c)
-        G_SUCCESS=$(echo "$GOOGLE_LOGS" | grep "✅" -c)
-        G_FAILED=$(echo "$GOOGLE_LOGS" | grep "❌" -c)
-        G_WARN=$(echo "$GOOGLE_LOGS" | grep "⚠️" -c)
-        
         G_RATE="0.0"
-        [ "$G_TOTAL" -gt 0 ] && G_RATE=$(awk "BEGIN {printf \"%.1f\", ($G_SUCCESS/$G_TOTAL)*100}")
+        [ "$G_ENDED" -gt 0 ] && G_RATE=$(awk "BEGIN {printf \"%.1f\", ($G_SUCCESS/$G_ENDED)*100}")
 
         MSG="$MSG
 
 🎯 **[Google 区域纠偏]**
-🚀 执行总数: ${G_TOTAL} 次 (胜率: **${G_RATE}%**)
-✅ 成功: ${G_SUCCESS} | ❌ 送中: ${G_FAILED} | ⚠️ 警告: ${G_WARN}"
+🚀 执行总数: ${G_TOTAL} 次 | 已结束: ${G_ENDED} 次 (成功率: **${G_RATE}%**)
+✅ 成功: ${G_SUCCESS} | ❌ 送中: ${G_FAILED} | ⚠️ 警告: ${G_WARN} | 🚨 熔断: ${G_ABORT}"
     fi
 
     # 统计 Trust 净化阵列数据
     if [ "$ENABLE_TRUST" == "true" ]; then
-        TRUST_LOGS=$(echo "$LOG_CONTENT" | grep "\[Trust")
-        T_TOTAL=$(echo "$TRUST_LOGS" | grep "\[START\]" -c)
-        T_SUCCESS=$(echo "$TRUST_LOGS" | grep "✅" -c)
-        T_FAILED=$(echo "$TRUST_LOGS" | grep "❌" -c)
-        
         T_RATE="0.0"
-        [ "$T_TOTAL" -gt 0 ] && T_RATE=$(awk "BEGIN {printf \"%.1f\", ($T_SUCCESS/$T_TOTAL)*100}")
+        [ "$T_ENDED" -gt 0 ] && T_RATE=$(awk "BEGIN {printf \"%.1f\", ($T_SUCCESS/$T_ENDED)*100}")
 
         MSG="$MSG
 
 🔰 **[IP 信用净化]**
-🚀 净化总数: ${T_TOTAL} 轮 (成功率: **${T_RATE}%**)
+🚀 净化总数: ${T_TOTAL} 轮 | 已结束: ${T_ENDED} 轮 (成功率: **${T_RATE}%**)
 ✅ 成功注入: ${T_SUCCESS} | ❌ 访问受阻: ${T_FAILED}"
     fi
 
@@ -185,7 +200,7 @@ else
     MSG="$MSG
 
 🕒 **最近执行快照:  \`${LAST_MOD:-"System"} \`**
-时间: ${LAST_TIME:-"暂无数据"} (节点本地)
+时间: ${LAST_TIME:-"暂无数据"} (UTC)
 结论: ${LAST_SCORE:-"暂无数据"}"
 
 fi
